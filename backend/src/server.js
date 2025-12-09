@@ -129,3 +129,119 @@ app.post("/join-league", async (req, res) => {
     res.status(500).json({ error: "Failed to join league" });
   }
 });
+
+//ADD MATCH endpoint
+app.post("/add-match", async (req, res) => {
+  try {
+    const { teamA, teamB, kickoffTime, round } = req.body;
+
+    if (!teamA || !teamB || !kickoffTime || !round) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    // Create a new document in Firestore
+    const matchRef = await db.collection("matches").add({
+      teamA,
+      teamB,
+      kickoffTime: new Date(kickoffTime),
+      round,
+      result: null
+    });
+
+    res.json({ message: "Match added!", matchId: matchRef.id });
+
+  } catch (error) {
+    console.error("Add match error:", error);
+    res.status(500).json({ error: "Failed to add match" });
+  }
+});
+
+//Get Matches from Firestore
+app.get("/matches", async (req, res) => {
+  try {
+    const snapshot = await db.collection("matches").get();
+    const matches = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.json(matches);
+
+  } catch (error) {
+    console.error("Get matches error:", error);
+    res.status(500).json({ error: "Failed to fetch matches" });
+  }
+});
+
+//Submiting Match Picks/Predictions
+app.post("/submit-picks", async (req, res) => {
+  try {
+    const { leagueId, userId, picks } = req.body;
+
+    if (!leagueId || !userId || !picks || picks.length === 0) {
+      return res.status(400).json({ error: "leagueId, userId, and picks are required" });
+    }
+
+    // Reference the league in Firestore
+    const leagueRef = db.collection("leagues").doc(leagueId);
+    const leagueSnap = await leagueRef.get();
+
+    if (!leagueSnap.exists) {
+      return res.status(404).json({ error: "League not found" });
+    }
+
+    const leagueData = leagueSnap.data();
+
+    if (!leagueData.members.includes(userId)) {
+      return res.status(400).json({ error: "User is not a member of this league" });
+    }
+
+    // ---------------------------
+    // 🔍 Determine round from picks
+    // ---------------------------
+    // Fetch match info for each pick
+    const matchDocs = await Promise.all(
+      picks.map(pick => db.collection("matches").doc(pick.matchId).get())
+    );
+
+    const rounds = matchDocs.map(doc => doc.data().round);
+
+    // Assume all picks belong to the same round
+    const round = rounds[0];
+
+    // ---------------------------
+    // 🔒 Lockout logic
+    // ---------------------------
+    const matchesSnap = await db.collection("matches")
+      .where("round", "==", round)
+      .get();
+
+    const now = new Date();
+    let lockout = false;
+
+    matchesSnap.forEach(doc => {
+      const match = doc.data();
+      const kickoff = new Date(match.kickoffTime);
+      if (now >= kickoff) {
+        lockout = true;
+      }
+    });
+
+    if (lockout) {
+      return res.status(400).json({ error: "Cannot submit picks, lockout is active." });
+    }
+
+    // Save picks under the userId
+    await leagueRef.collection("picks").doc(userId).set({ picks });
+
+    res.json({ message: "Picks submitted successfully!" });
+
+  } catch (error) {
+    console.error("Submit picks error:", error);
+    res.status(500).json({ error: "Failed to submit picks" });
+  }
+});
+
+
+
+
