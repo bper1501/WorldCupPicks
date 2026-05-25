@@ -56,26 +56,33 @@ function generateLeagueCode(length = 6) {
 }
 
 // CREATE LEAGUE endpoint
+//http://localhost:5001/create-league
+/*
+{
+  "name" : ""
+}
+*/
+
 app.post("/create-league", async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ error: "League name is required" });
+    const { leagueName } = req.body;
+    if (!leagueName) return res.status(400).json({ error: "League name is required" });
 
     // Generate a unique league code
-    const code = generateLeagueCode();
+    const inviteCode = generateLeagueCode();
 
     // Create the league in Firestore
     const leagueRef = await db.collection("leagues").add({
-      name,
-      code,
+      leagueName,
+      inviteCode,
       createdAt: new Date(),
       members: []
     });
 
     res.json({
-      message: "League created successfully",
+      message: "League created successfully - share the Invite Code with others to join your league",
       leagueId: leagueRef.id,
-      code
+      inviteCode
     });
   } catch (err) {
     console.error(err);
@@ -96,23 +103,60 @@ app.get("/create-league", async (req, res) => {
 
 
 // JOIN LEAGUE endpoint
+//Post URL - http://localhost:5001/join-league
+/*
+  {
+    "InviteCode": "abc123",
+    "userId": "john"
+  }
+*/
+
+/*Enhancements
+  Make league joinable by Code or leagueName - done
+
+*/
+
 app.post("/join-league", async (req, res) => {
   try {
-    const { leagueId, userId } = req.body;
+    //const { leagueId, userId} = req.body; //join via leagueid
+    const { inviteCode, userId } = req.body; //join via invite code
 
-    if (!leagueId || !userId) {
-      return res.status(400).json({ error: "leagueId and userId are required" });
+    // if (!leagueId || !userId) {
+    //   return res.status(400).json({ error: "leagueId and userId are required" });
+    // }
+
+    if (!inviteCode || !userId){
+      return res.status(400).json({ error: "Invite Code and Username are required" });
     }
 
-    const leagueRef = db.collection("leagues").doc(leagueId);
-    const leagueSnap = await leagueRef.get();
+    // const leagueRef = db.collection("leagues").doc(leagueId);
+    // const leagueSnap = await leagueRef.get();
 
-    if (!leagueSnap.exists) {
-      return res.status(404).json({ error: "League not found" });
+    // if (!leagueSnap.exists) {
+    //   return res.status(404).json({ error: "League not found" });
+    // }
+
+    const leagueQuery = await db
+    .collection("leagues")
+    .where("inviteCode", "==", inviteCode)
+    .get();
+
+
+    //Check if League is found via invite code
+    if (leagueQuery.empty) {
+      return res.status(404).json({
+        error: "League not found"
+      });
     }
+
+    // Get first matching league
+    const leagueDoc = leagueQuery.docs[0]; //Pulls league from DB
+
+    const leagueRef = leagueDoc.ref;
+
+    const leagueData = leagueDoc.data();
 
     //Check if user is already a member
-    const leagueData = leagueSnap.data();
     const members = leagueData.members || [];
     if (members.includes(userId)) { 
       return res.status(400).json({ error: "User is already a member of this league" });
@@ -123,7 +167,14 @@ app.post("/join-league", async (req, res) => {
       members: admin.firestore.FieldValue.arrayUnion(userId)
     });
 
-    res.json({ message: "User joined league successfully", userId });
+    const leagueName = leagueData.leagueName; 
+    
+
+    res.json({ 
+      message: `Welcome to League: ${leagueName}`, 
+      userId,
+      leagueName      
+     });
   } catch (error) {
     console.error("Join league error:", error);
     res.status(500).json({ error: "Failed to join league" });
@@ -131,11 +182,21 @@ app.post("/join-league", async (req, res) => {
 });
 
 //ADD MATCH endpoint
+//Post URL - http://localhost:5001/add-match
+/*
+  {
+    "teamA": "Mexico",
+    "teamB": "South Africa",
+    "kickoffTime": "14:00pm",
+    "stage" : "Group Stage"
+    "round" : "Round 1"
+  }
+*/
 app.post("/add-match", async (req, res) => {
   try {
-    const { teamA, teamB, kickoffTime, round } = req.body;
+    const { teamA, teamB, kickoffTime, stage, round, group} = req.body;
 
-    if (!teamA || !teamB || !kickoffTime || !round) {
+    if (!teamA || !teamB || !kickoffTime || !stage || !round || !group) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
@@ -143,8 +204,10 @@ app.post("/add-match", async (req, res) => {
     const matchRef = await db.collection("matches").add({
       teamA,
       teamB,
-      kickoffTime: new Date(kickoffTime),
+      kickoffTime,
+      stage,
       round,
+      group,
       result: null
     });
 
@@ -156,7 +219,7 @@ app.post("/add-match", async (req, res) => {
   }
 });
 
-//Get Matches from Firestore
+//Get All Matches from Firestore 
 app.get("/matches", async (req, res) => {
   try {
     const snapshot = await db.collection("matches").get();
@@ -173,75 +236,142 @@ app.get("/matches", async (req, res) => {
   }
 });
 
-//Submiting Match Picks/Predictions
+//Submit Picks Endpoint
 app.post("/submit-picks", async (req, res) => {
   try {
-    const { leagueId, userId, picks } = req.body;
 
-    if (!leagueId || !userId || !picks || picks.length === 0) {
-      return res.status(400).json({ error: "leagueId, userId, and picks are required" });
+    const {
+      leagueId,
+      userId,
+      stage,
+      picks,
+      tiebreakerGoals
+    } = req.body;
+
+    // Validate required fields
+    if (!leagueId || !userId || !stage || !picks) {
+      return res.status(400).json({
+        error: "leagueId, userId, stage, and picks are required"
+      });
     }
 
-    // Reference the league in Firestore
+    // Get stage document
+    const stageRef = db.collection("stages").doc(stage);
+
+    const stageSnap = await stageRef.get();
+
+    // Check if stage exists
+    if (!stageSnap.exists) {
+      return res.status(404).json({
+        error: "Stage not found"
+      });
+    }
+
+    // Get stage data
+    const stageData = stageSnap.data();
+
+    // Check if stage is manually locked
+    if (stageData.isLocked) {
+      return res.status(400).json({
+        error: "This stage is locked"
+      });
+    }
+
+    // Check lock time
+    const now = new Date();
+
+    const lockTime = stageData.lockTime.toDate();
+
+    //If locktime has already passed - pick submission should be locked
+    if (now >= lockTime) {
+      return res.status(400).json({
+        error: "Pick submissions are closed for this stage"
+      });
+    }
+
+    // Reference league
     const leagueRef = db.collection("leagues").doc(leagueId);
+
     const leagueSnap = await leagueRef.get();
 
+    // Check if league exists
     if (!leagueSnap.exists) {
-      return res.status(404).json({ error: "League not found" });
+      return res.status(404).json({
+        error: "League not found"
+      });
     }
 
     const leagueData = leagueSnap.data();
 
+    // Check membership
     if (!leagueData.members.includes(userId)) {
-      return res.status(400).json({ error: "User is not a member of this league" });
+      return res.status(400).json({
+        error: "User is not a member of this league"
+      });
     }
 
-    // ---------------------------
-    // 🔍 Determine round from picks
-    // ---------------------------
-    // Fetch match info for each pick
-    const matchDocs = await Promise.all(
-      picks.map(pick => db.collection("matches").doc(pick.matchId).get())
-    );
+    // Save picks
+    await db
+      .collection("picks")
+      .doc(leagueId)
+      .collection(stage)
+      .doc(userId)
+      .set({
+        picks,
+        tiebreakerGoals,
+        submittedAt: new Date()
+      });
 
-    const rounds = matchDocs.map(doc => doc.data().round);
-
-    // Assume all picks belong to the same round
-    const round = rounds[0];
-
-    // ---------------------------
-    // 🔒 Lockout logic
-    // ---------------------------
-    const matchesSnap = await db.collection("matches")
-      .where("round", "==", round)
-      .get();
-
-    const now = new Date();
-    let lockout = false;
-
-    matchesSnap.forEach(doc => {
-      const match = doc.data();
-      const kickoff = new Date(match.kickoffTime);
-      if (now >= kickoff) {
-        lockout = true;
-      }
+    // Success response
+    res.json({
+      message: "Picks submitted successfully! Good luck..."
     });
 
-    if (lockout) {
-      return res.status(400).json({ error: "Cannot submit picks, lockout is active." });
-    }
-
-    // Save picks under the userId
-    await leagueRef.collection("picks").doc(userId).set({ picks });
-
-    res.json({ message: "Picks submitted successfully!" });
-
   } catch (error) {
+
     console.error("Submit picks error:", error);
-    res.status(500).json({ error: "Failed to submit picks" });
+
+    res.status(500).json({
+      error: "Failed to submit picks"
+    });
   }
 });
 
+//Stages pull
+app.get("/stage/:stageId", async (req, res) => {
+  try {
+
+    // Get stageId from URL
+    const { stageId } = req.params;
+
+    // Reference Firestore document
+    const stageRef = db.collection("stages").doc(stageId);
+
+    // Fetch document
+    const stageSnap = await stageRef.get();
+
+    // Check if stage exists
+    if (!stageSnap.exists) {
+      return res.status(404).json({
+        error: "Stage not found"
+      });
+    }
+
+    // Get stage data
+    const stageData = stageSnap.data();
+
+    // Return response
+    res.json(stageData);
+
+  } catch (error) {
+
+    console.error("Stage fetch error:", error);
+
+    res.status(500).json({
+      error: "Failed to fetch stage"
+    });
+  }
+});
 
 
 
