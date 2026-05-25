@@ -136,6 +136,7 @@ app.post("/join-league", async (req, res) => {
     //   return res.status(404).json({ error: "League not found" });
     // }
 
+    //Query the DB for Invite Code
     const leagueQuery = await db
     .collection("leagues")
     .where("inviteCode", "==", inviteCode)
@@ -372,6 +373,8 @@ app.get("/stage/:stageId", async (req, res) => {
     });
   }
 });
+
+//Get Matches by Stage
 
 
 
