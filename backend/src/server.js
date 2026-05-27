@@ -59,14 +59,15 @@ function generateLeagueCode(length = 6) {
 //http://localhost:5001/create-league
 /*
 {
-  "name" : ""
+  "leagueName" : "",
+  "userId" : ""
 }
 */
 
 app.post("/create-league", async (req, res) => {
   try {
-    const { leagueName } = req.body;
-    if (!leagueName) return res.status(400).json({ error: "League name is required" });
+    const { leagueName, userId } = req.body;
+    if (!leagueName || !userId) return res.status(400).json({ error: "League name and user ID are required" });
 
     // Generate a unique league code
     const inviteCode = generateLeagueCode();
@@ -76,11 +77,12 @@ app.post("/create-league", async (req, res) => {
       leagueName,
       inviteCode,
       createdAt: new Date(),
-      members: []
+      createdBy: userId,
+      members: [userId] // Add creator as first member
     });
 
     res.json({
-      message: "League created successfully - share the Invite Code with others to join your league",
+      message: `Welcome ${userId}! League created successfully - share the Invite Code (${inviteCode}) with others to join your league`,
       leagueId: leagueRef.id,
       inviteCode
     });
@@ -712,5 +714,20 @@ app.post("/calculate-stage-scores", async (req, res) => {
     res.status(500).json({
       error: "Failed to calculate stage scores"
     });
+  }
+});
+
+//GET /leaderboard/:leagueId/:stage.
+
+
+//Get all leagues endpoint
+app.get("/leagues", async (req, res) => {
+  try {
+    const snapshot = await db.collection("leagues").get();
+    const leagues = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json(leagues);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch leagues" });
   }
 });
