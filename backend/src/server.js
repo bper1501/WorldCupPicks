@@ -1,11 +1,16 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import { db } from "./firebase.js";
 import admin from "firebase-admin";
+import axios from "axios";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
 
 // Use environment variable PORT if set, fallback to 5000
 const PORT = process.env.PORT || 5001;
@@ -53,6 +58,21 @@ function generateLeagueCode(length = 6) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return code;
+}
+
+// Helper function to map football-data.org stages to our internal stage names
+function mapStage(apiStage) {
+  const stageMap = {
+    GROUP_STAGE: "group-stage",
+    LAST_32: "round-of-32",
+    LAST_16: "round-of-16",
+    QUARTER_FINALS: "quarter-finals",
+    SEMI_FINALS: "semi-finals",
+    THIRD_PLACE: "third-place",
+    FINAL: "final"
+  };
+
+  return stageMap[apiStage] || "unknown";
 }
 
 // CREATE LEAGUE endpoint
@@ -573,6 +593,27 @@ app.post("/calculate-stage-scores", async (req, res) => {
       });
     }
 
+    // Get stage document
+    const stageRef = db.collection("stages").doc(stage);
+    const stageSnap = await stageRef.get();
+
+    // Check stage exists
+    if (!stageSnap.exists) {
+      return res.status(404).json({
+        error: "Stage not found"
+      });
+    }
+
+    const stageData = stageSnap.data();
+
+    // Prevent recalculation if finalized
+    if (stageData.isFinalized) {
+      return res.status(400).json({
+        error: "Stage has already been finalized"
+      });
+    }
+
+
     // 1. Verify league exists
     const leagueRef = db.collection("leagues").doc(leagueId);
     const leagueSnap = await leagueRef.get();
@@ -602,6 +643,7 @@ app.post("/calculate-stage-scores", async (req, res) => {
     }));
 
     console.log(`Found ${matches.length} finished matches for stage ${stage}`);
+
 
     // 3. Create a lookup map by matchId
     const matchMap = {};
@@ -717,7 +759,68 @@ app.post("/calculate-stage-scores", async (req, res) => {
   }
 });
 
-//GET /leaderboard/:leagueId/:stage.
+//GET /leaderboard/:leagueId/:stage - returns sorted leaderboard for a league and stage based on calculated scores
+app.get("/leaderboard/:leagueId/:stage", async (req, res) => {
+  try {
+    const { leagueId, stage } = req.params;
+
+    if (!leagueId || !stage) {
+      return res.status(400).json({
+        error: "leagueId and stage are required"
+      });
+    }
+
+    const scoresSnapshot = await db
+      .collection("scores")
+      .doc(leagueId)
+      .collection(stage)
+      .get();
+
+    if (scoresSnapshot.empty) {
+      return res.status(404).json({
+        error: "No scores found for this league and stage. Run /calculate-stage-scores first."
+      });
+    }
+
+    const leaderboard = scoresSnapshot.docs
+      .map(doc => {
+        const data = doc.data();
+
+        return {
+          userId: doc.id,
+          matchPoints: data.matchPoints || 0,
+          tiebreakerPoints: data.tiebreakerPoints || 0,
+          totalPoints: data.totalPoints || 0,
+          tiebreakerGoals: data.tiebreakerGoals,
+          tiebreakerDifference: data.tiebreakerDifference
+        };
+      })
+      .sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) {
+          return b.totalPoints - a.totalPoints;
+        }
+
+        return a.tiebreakerDifference - b.tiebreakerDifference;
+      })
+      .map((user, index) => ({
+        rank: index + 1,
+        ...user
+      }));
+
+    res.json({
+      leagueId,
+      stage,
+      leaderboard
+    });
+
+  } catch (error) {
+    console.error("Leaderboard error:", error);
+
+    res.status(500).json({
+      error: "Failed to get leaderboard"
+    });
+  }
+});
 
 
 //Get all leagues endpoint
@@ -729,5 +832,596 @@ app.get("/leagues", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch leagues" });
+  }
+});
+
+//GET specific league details by leagueId - including members and invite code
+app.get("/league/:leagueId", async (req, res) => {
+  try {
+    const { leagueId } = req.params;
+
+    const leagueRef = db.collection("leagues").doc(leagueId);
+    const leagueSnap = await leagueRef.get();
+
+    if (!leagueSnap.exists) {
+      return res.status(404).json({
+        error: "League not found"
+      });
+    }
+
+    const leagueData = leagueSnap.data();
+
+    res.json({
+      id: leagueSnap.id,
+      leagueName: leagueData.leagueName,
+      inviteCode: leagueData.inviteCode,
+      members: leagueData.members || []
+    });
+
+  } catch (error) {
+    console.error("League fetch error:", error);
+
+    res.status(500).json({
+      error: "Failed to fetch league"
+    });
+  }
+});
+
+//Get stage lock status
+app.get("/stage-status/:stage", async (req, res) => {
+  try {
+    const { stage } = req.params;
+
+    if (!stage) {
+      return res.status(400).json({
+        error: "Stage parameter is required"
+      });
+    }
+
+    const stageRef = db.collection("stages").doc(stage);
+    const stageSnap = await stageRef.get();
+
+    if (!stageSnap.exists) {
+      return res.status(404).json({
+        error: "Stage not found"
+      });
+    }
+
+    const stageData = stageSnap.data();
+
+    if (!stageData.lockTime) {
+      return res.status(400).json({
+        error: "Stage lockTime is missing"
+      });
+    }
+
+    const now = new Date();
+    const lockTime = stageData.lockTime.toDate();
+
+    const isManuallyLocked = stageData.isLocked === true;
+    const isTimeClosed = now >= lockTime;
+
+    let status = "open";
+
+    if (isManuallyLocked) {
+      status = "locked";
+    } else if (isTimeClosed) {
+      status = "closed";
+    }
+
+    res.json({
+      stage,
+      status,
+      isLocked: isManuallyLocked,
+      isClosed: isTimeClosed,
+      lockTime,
+      serverTime: now
+    });
+
+  } catch (error) {
+    console.error("Stage status error:", error);
+
+    res.status(500).json({
+      error: "Failed to fetch stage status"
+    });
+  }
+});
+
+// POST FINALIZE STAGE
+app.post("/finalize-stage", async (req, res) => {
+  try {
+    const { leagueId, stage } = req.body;
+
+    if (!leagueId || !stage) {
+      return res.status(400).json({
+        error: "leagueId and stage are required"
+      });
+    }
+
+    // 1. Verify league exists
+    const leagueRef = db.collection("leagues").doc(leagueId);
+    const leagueSnap = await leagueRef.get();
+
+    if (!leagueSnap.exists) {
+      return res.status(404).json({
+        error: "League not found"
+      });
+    }
+
+    // 2. Verify stage exists
+    const stageRef = db.collection("stages").doc(stage);
+    const stageSnap = await stageRef.get();
+
+    if (!stageSnap.exists) {
+      return res.status(404).json({
+        error: "Stage not found"
+      });
+    }
+
+    const stageData = stageSnap.data();
+
+    // 3. Prevent duplicate finalization
+    if (stageData.isFinalized) {
+      return res.status(400).json({
+        error: "Stage has already been finalized"
+      });
+    }
+
+    // 4. Confirm scores were calculated first
+    const scoresSnapshot = await db
+      .collection("scores")
+      .doc(leagueId)
+      .collection(stage)
+      .get();
+
+    if (scoresSnapshot.empty) {
+      return res.status(400).json({
+        error: "No scores found. Run /calculate-stage-scores first."
+      });
+    }
+
+    // 5. Mark stage as finalized
+    await stageRef.update({
+      isFinalized: true,
+      finalizedAt: new Date(),
+      finalizedForLeagueId: leagueId
+    });
+
+    res.json({
+      message: "Stage finalized successfully",
+      leagueId,
+      stage,
+      finalized: true
+    });
+
+  } catch (error) {
+    console.error("Finalize stage error:", error);
+
+    res.status(500).json({
+      error: "Failed to finalize stage"
+    });
+  }
+});
+
+// GET USER RESULTS FOR STAGE
+app.get("/results/:leagueId/:stage/:userId", async (req, res) => {
+  try {
+    const { leagueId, stage, userId } = req.params;
+
+    if (!leagueId || !stage || !userId) {
+      return res.status(400).json({
+        error: "leagueId, stage, and userId are required"
+      });
+    }
+
+    // 1. Get user's submitted picks
+    const pickRef = db
+      .collection("picks")
+      .doc(leagueId)
+      .collection(stage)
+      .doc(userId);
+
+    const pickSnap = await pickRef.get();
+
+    if (!pickSnap.exists) {
+      return res.status(404).json({
+        error: "Picks not found for this user"
+      });
+    }
+
+    const pickData = pickSnap.data();
+    const userPicks = pickData.picks || [];
+
+    // 2. Get finished matches for this stage
+    const matchesSnapshot = await db
+      .collection("matches")
+      .where("stage", "==", stage)
+      .where("status", "==", "FINISHED")
+      .get();
+
+    if (matchesSnapshot.empty) {
+      return res.status(404).json({
+        error: "No finished matches found for this stage"
+      });
+    }
+
+    // 3. Create match lookup by match ID
+    const matchMap = {};
+
+    matchesSnapshot.docs.forEach(doc => {
+      matchMap[doc.id] = {
+        id: doc.id,
+        ...doc.data()
+      };
+    });
+
+    // 4. Compare each user pick against the real result
+    const results = userPicks.map(userPick => {
+      const match = matchMap[userPick.matchId];
+
+      if (!match) {
+        return {
+          matchId: userPick.matchId,
+          userPick: userPick.pick,
+          actualWinner: null,
+          correct: false,
+          pointsEarned: 0,
+          status: "Match not finished or not found"
+        };
+      }
+
+      const correct = userPick.pick === match.winner;
+
+      return {
+        matchId: userPick.matchId,
+        teamA: match.teamA,
+        teamB: match.teamB,
+        homeGoals: match.homeGoals,
+        awayGoals: match.awayGoals,
+        userPick: userPick.pick,
+        actualWinner: match.winner,
+        correct,
+        pointsEarned: correct ? 1 : 0,
+        status: match.status
+      };
+    });
+
+    // 5. Get saved score if calculation has already run
+    const scoreRef = db
+      .collection("scores")
+      .doc(leagueId)
+      .collection(stage)
+      .doc(userId);
+
+    const scoreSnap = await scoreRef.get();
+
+    const scoreData = scoreSnap.exists ? scoreSnap.data() : null;
+
+    // 6. Return response
+    res.json({
+      leagueId,
+      stage,
+      userId,
+      tiebreakerGoals: pickData.tiebreakerGoals,
+      results,
+      score: scoreData
+        ? {
+            matchPoints: scoreData.matchPoints,
+            tiebreakerPoints: scoreData.tiebreakerPoints,
+            totalPoints: scoreData.totalPoints,
+            actualTotalGoals: scoreData.actualTotalGoals,
+            tiebreakerDifference: scoreData.tiebreakerDifference
+          }
+        : {
+            message: "Score has not been calculated yet"
+          }
+    });
+
+  } catch (error) {
+    console.error("Get results error:", error);
+
+    res.status(500).json({
+      error: "Failed to fetch results"
+    });
+  }
+});
+
+// GET LEAGUE SUMMARY
+app.get("/league-summary/:leagueId", async (req, res) => {
+  try {
+    const { leagueId } = req.params;
+
+    if (!leagueId) {
+      return res.status(400).json({
+        error: "leagueId is required"
+      });
+    }
+
+    // 1. Get league
+    const leagueRef = db.collection("leagues").doc(leagueId);
+    const leagueSnap = await leagueRef.get();
+
+    if (!leagueSnap.exists) {
+      return res.status(404).json({
+        error: "League not found"
+      });
+    }
+
+    const leagueData = leagueSnap.data();
+
+    // 2. Set current stage
+    let currentStage = "group-stage"; // Default stage
+    const settingsRef = db.collection("settings").doc("app");
+    const settingsSnap = await settingsRef.get();
+
+    if (!settingsSnap.exists) {
+      return res.status(404).json({
+        error: "App settings not found"
+      });
+    }
+
+    if (settingsSnap.exists) {
+      const settingsData = settingsSnap.data();
+      if (settingsData.currentStage) {
+        currentStage = settingsData.currentStage;
+      }
+    }
+
+    // 3. Get stage info
+    const stageRef = db.collection("stages").doc(currentStage);
+    const stageSnap = await stageRef.get();
+
+    let stageStatus = "unknown";
+    let lockTime = null;
+
+    if (stageSnap.exists) {
+      const stageData = stageSnap.data();
+
+      if (stageData.lockTime) {
+        const now = new Date();
+        const stageLockTime = stageData.lockTime.toDate();
+
+        const isManuallyLocked = stageData.isLocked === true;
+        const isTimeClosed = now >= stageLockTime;
+
+        if (isManuallyLocked) {
+          stageStatus = "locked";
+        } else if (isTimeClosed) {
+          stageStatus = "closed";
+        } else {
+          stageStatus = "open";
+        }
+
+        lockTime = stageLockTime;
+      }
+    }
+
+    // 4. Get leaderboard preview
+    const scoresSnapshot = await db
+      .collection("scores")
+      .doc(leagueId)
+      .collection(currentStage)
+      .get();
+
+    let topPlayers = [];
+
+    if (!scoresSnapshot.empty) {
+      topPlayers = scoresSnapshot.docs
+        .map(doc => {
+          const data = doc.data();
+
+          return {
+            userId: doc.id,
+            totalPoints: data.totalPoints || 0,
+            matchPoints: data.matchPoints || 0,
+            tiebreakerPoints: data.tiebreakerPoints || 0
+          };
+        })
+        .sort((a, b) => b.totalPoints - a.totalPoints)
+        .slice(0, 5);
+    }
+
+    // 5. Get upcoming matches
+    const matchesSnapshot = await db
+      .collection("matches")
+      .where("stage", "==", currentStage)
+      .where("status", "==", "scheduled")
+      .get();
+
+    const upcomingMatches = matchesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // 6. Return summary
+    res.json({
+      leagueId,
+      leagueName: leagueData.leagueName,
+      inviteCode: leagueData.inviteCode,
+      memberCount: leagueData.members ? leagueData.members.length : 0,
+      members: leagueData.members || [],
+      currentStage,
+      stageStatus,
+      lockTime,
+      topPlayers,
+      upcomingMatches
+    });
+
+  } catch (error) {
+    console.error("League summary error:", error);
+
+    res.status(500).json({
+      error: "Failed to fetch league summary"
+    });
+  }
+});
+
+// GET CURRENT STAGE
+app.get("/current-stage", async (req, res) => {
+  try {
+    const settingsRef = db.collection("settings").doc("app");
+    const settingsSnap = await settingsRef.get();
+
+    if (!settingsSnap.exists) {
+      return res.status(404).json({
+        error: "App settings not found"
+      });
+    }
+
+    const settingsData = settingsSnap.data();
+
+    if (!settingsData.currentStage) {
+      return res.status(400).json({
+        error: "currentStage is not set"
+      });
+    }
+
+    res.json({
+      currentStage: settingsData.currentStage
+    });
+
+  } catch (error) {
+    console.error("Current stage error:", error);
+
+    res.status(500).json({
+      error: "Failed to fetch current stage"
+    });
+  }
+});
+
+// POST SET CURRENT STAGE
+app.post("/set-current-stage", async (req, res) => {
+  try {
+    const { stage } = req.body;
+
+    if (!stage) {
+      return res.status(400).json({
+        error: "stage is required"
+      });
+    }
+
+    // 1. Verify the stage exists
+    const stageRef = db.collection("stages").doc(stage);
+    const stageSnap = await stageRef.get();
+
+    if (!stageSnap.exists) {
+      return res.status(404).json({
+        error: "Stage not found"
+      });
+    }
+
+    // 2. Update app settings
+    const settingsRef = db.collection("settings").doc("app");
+
+    await settingsRef.set(
+      {
+        currentStage: stage,
+        updatedAt: new Date()
+      },
+      { merge: true }
+    );
+
+    res.json({
+      message: "Current stage updated successfully",
+      currentStage: stage
+    });
+
+  } catch (error) {
+    console.error("Set current stage error:", error);
+
+    res.status(500).json({
+      error: "Failed to set current stage"
+    });
+  }
+});
+
+
+// API CALLS TO FOOTBALL-DATA.ORG
+// POST SYNC 2026 WORLD CUP MATCHES - Pulling from football-data.org API and saving to Firestore
+app.post("/sync-worldcup-matches", async (req, res) => {
+  try {
+    const apiKey = process.env.FOOTBALL_DATA_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({
+        error: "FOOTBALL_DATA_API_KEY is missing from .env"
+      });
+    }
+
+    const response = await axios.get(
+      "https://api.football-data.org/v4/competitions/WC/matches?season=2026",
+      {
+        headers: {
+          "X-Auth-Token": apiKey
+        }
+      }
+    );
+
+    const matches = response.data.matches || [];
+
+    if (matches.length === 0) {
+      return res.status(404).json({
+        error: "No World Cup 2026 matches found from API"
+      });
+    }
+
+    const batch = db.batch();
+
+    matches.forEach(match => {
+      const matchRef = db
+        .collection("matches")
+        .doc(match.id.toString());
+
+      const homeGoals = match.score?.fullTime?.home ?? null;
+      const awayGoals = match.score?.fullTime?.away ?? null;
+
+      let winner = null;
+
+      if (match.score?.winner === "HOME_TEAM") {
+        winner = match.homeTeam?.name;
+      } else if (match.score?.winner === "AWAY_TEAM") {
+        winner = match.awayTeam?.name;
+      } else if (match.score?.winner === "DRAW") {
+        winner = "DRAW";
+      }
+
+      batch.set(
+        matchRef,
+        {
+          externalMatchId: match.id,
+          teamA: match.homeTeam?.name || "TBD",
+          teamB: match.awayTeam?.name || "TBD",
+          homeTeamId: match.homeTeam?.id || null,
+          awayTeamId: match.awayTeam?.id || null,
+          kickoffTime: match.utcDate || null,
+          stage: mapStage(match.stage),
+          apiStage: match.stage,
+          group: match.group || null,
+          round: match.matchday || null,
+          status: match.status,
+          homeGoals,
+          awayGoals,
+          winner,
+          source: "football-data.org",
+          updatedAt: new Date()
+        },
+        { merge: true }
+      );
+    });
+
+    await batch.commit();
+
+    res.json({
+      message: "World Cup 2026 matches synced successfully",
+      syncedMatches: matches.length
+    });
+
+  } catch (error) {
+    console.error("Sync World Cup matches error:", error.response?.data || error.message);
+
+    res.status(500).json({
+      error: "Failed to sync World Cup matches",
+      details: error.response?.data || error.message
+    });
   }
 });
