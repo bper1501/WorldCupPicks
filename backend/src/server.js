@@ -12,6 +12,37 @@ app.use(cors());
 app.use(express.json());
 
 
+//Admin check function - checks if userId is in ADMIN_USERS env variable
+function isAdmin(userId) {
+  const admins = process.env.ADMIN_USERS
+    ? process.env.ADMIN_USERS.split(",").map(admin => admin.trim())
+    : [];
+
+  return admins.includes(userId);
+}
+
+//admin check middleware for routes that require admin access
+function requireAdmin(req, res) {
+  const { userId } = req.body;
+
+  if (!userId) {
+    res.status(400).json({
+      error: "userId is required for admin actions"
+    });
+    return false;
+  }
+
+  if (!isAdmin(userId)) {
+    res.status(403).json({
+      error: "Admin access required"
+    });
+    return false;
+  }
+
+  return true;
+}
+
+
 // Use environment variable PORT if set, fallback to 5000
 const PORT = process.env.PORT || 5001;
 console.log("PORT BEING USED: " + PORT)
@@ -268,6 +299,7 @@ app.get("/matches", async (req, res) => {
 //Submit Picks Endpoint
 app.post("/submit-picks", async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
 
     const {
       leagueId,
@@ -530,7 +562,7 @@ app.get("/picks/:leagueId/:stage/:userId", async (req, res) => {
 //POST UPDATE MATCH RESULT
 app.post("/update-match-result", async (req, res) => {
   try {
-
+    if (!requireAdmin(req, res)) return;
     const {
       matchId,
       winner,
@@ -585,6 +617,7 @@ app.post("/update-match-result", async (req, res) => {
 //POST CALCULATE STAGE SCORES
 app.post("/calculate-stage-scores", async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const { leagueId, stage } = req.body;
 
     if (!leagueId || !stage) {
@@ -930,6 +963,7 @@ app.get("/stage-status/:stage", async (req, res) => {
 // POST FINALIZE STAGE
 app.post("/finalize-stage", async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const { leagueId, stage } = req.body;
 
     if (!leagueId || !stage) {
@@ -1292,6 +1326,7 @@ app.get("/current-stage", async (req, res) => {
 // POST SET CURRENT STAGE
 app.post("/set-current-stage", async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const { stage } = req.body;
 
     if (!stage) {
@@ -1340,6 +1375,8 @@ app.post("/set-current-stage", async (req, res) => {
 // POST SYNC 2026 WORLD CUP MATCHES - Pulling from football-data.org API and saving to Firestore
 app.post("/sync-worldcup-matches", async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
+
     const apiKey = process.env.FOOTBALL_DATA_API_KEY;
 
     if (!apiKey) {
@@ -1430,6 +1467,7 @@ app.post("/sync-worldcup-matches", async (req, res) => {
 // POST SYNC 2026 WORLD CUP RESULTS
 app.post("/sync-worldcup-results", async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const apiKey = process.env.FOOTBALL_DATA_API_KEY;
 
     if (!apiKey) {
@@ -1538,6 +1576,7 @@ app.post("/sync-worldcup-results", async (req, res) => {
 // POST SYNC FULL 2026 WORLD CUP DATA Pulls Matches and Results in one call - can be used for initial full sync or future updatess
 app.post("/sync-worldcup", async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const apiKey = process.env.FOOTBALL_DATA_API_KEY;
 
     if (!apiKey) {
@@ -1675,6 +1714,7 @@ app.post("/sync-worldcup", async (req, res) => {
 // POST PROCESS STAGE - Pulls latest match data from football-data.org, updates Firestore, then calculates scores for a specific league and stage - can be used to process each stage as it finishes
 app.post("/process-stage", async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
     const { leagueId, stage } = req.body;
 
     if (!leagueId || !stage) {
@@ -2160,6 +2200,114 @@ app.get("/dashboard/:leagueId/:userId", async (req, res) => {
 
     res.status(500).json({
       error: "Failed to fetch dashboard"
+    });
+  }
+});
+
+
+// GET SEASON LEADERBOARD
+app.get("/season-leaderboard/:leagueId", async (req, res) => {
+  try {
+    const { leagueId } = req.params;
+
+    if (!leagueId) {
+      return res.status(400).json({
+        error: "leagueId is required"
+      });
+    }
+
+    // 1. Verify league exists
+    const leagueRef = db.collection("leagues").doc(leagueId);
+    const leagueSnap = await leagueRef.get();
+
+    if (!leagueSnap.exists) {
+      return res.status(404).json({
+        error: "League not found"
+      });
+    }
+
+    // 2. Define all stages in tournament order
+    const stages = [
+      "group-stage",
+      "round-of-32",
+      "round-of-16",
+      "quarter-finals",
+      "semi-finals",
+      "third-place",
+      "final"
+    ];
+
+    // 3. This will hold totals by user
+    const userTotals = {};
+
+    // 4. Loop through each stage and pull scores
+    for (const stage of stages) {
+      const scoresSnapshot = await db
+        .collection("scores")
+        .doc(leagueId)
+        .collection(stage)
+        .get();
+
+      if (scoresSnapshot.empty) {
+        continue;
+      }
+
+      scoresSnapshot.docs.forEach(doc => {
+        const userId = doc.id;
+        const data = doc.data();
+
+        if (!userTotals[userId]) {
+          userTotals[userId] = {
+            userId,
+            totalPoints: 0,
+            totalMatchPoints: 0,
+            totalTiebreakerPoints: 0,
+            stagesPlayed: 0,
+            stageBreakdown: {}
+          };
+        }
+
+        const matchPoints = data.matchPoints || 0;
+        const tiebreakerPoints = data.tiebreakerPoints || 0;
+        const totalPoints = data.totalPoints || 0;
+
+        userTotals[userId].totalPoints += totalPoints;
+        userTotals[userId].totalMatchPoints += matchPoints;
+        userTotals[userId].totalTiebreakerPoints += tiebreakerPoints;
+        userTotals[userId].stagesPlayed += 1;
+
+        userTotals[userId].stageBreakdown[stage] = {
+          matchPoints,
+          tiebreakerPoints,
+          totalPoints
+        };
+      });
+    }
+
+    // 5. Convert object to array and sort
+    const leaderboard = Object.values(userTotals)
+      .sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) {
+          return b.totalPoints - a.totalPoints;
+        }
+
+        return b.totalMatchPoints - a.totalMatchPoints;
+      })
+      .map((user, index) => ({
+        rank: index + 1,
+        ...user
+      }));
+
+    res.json({
+      leagueId,
+      leaderboard
+    });
+
+  } catch (error) {
+    console.error("Season leaderboard error:", error);
+
+    res.status(500).json({
+      error: "Failed to fetch season leaderboard"
     });
   }
 });
