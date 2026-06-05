@@ -1,5 +1,6 @@
 # Ignore macOS files
 .DS_Store
+.env
 
 # Ignore service account key
 serviceAccountKey.json
