@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { joinLeague } from "../api/api";
+import { Link } from "react-router-dom";
 
 export default function JoinLeague() {
   const [inviteCode, setInviteCode] = useState("");
@@ -29,6 +30,21 @@ export default function JoinLeague() {
   return (
     <div style={{ padding: "24px", maxWidth: "420px" }}>
       <h1>Join League</h1>
+
+      <p>
+        Want to create a league?{" "}
+        <Link to="/create-league">
+          Create one here
+        </Link>
+      </p>
+
+      <p>
+        <Link to="/dashboard">Go to Dashboard</Link>
+      </p>
+
+      <p> 
+        <Link to="/submit-picks">Go to Submit Picks</Link>
+      </p>
 
       <form onSubmit={handleJoinLeague}>
         <div style={{ marginBottom: "12px" }}>

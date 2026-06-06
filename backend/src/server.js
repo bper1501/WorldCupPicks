@@ -299,7 +299,7 @@ app.get("/matches", async (req, res) => {
 //Submit Picks Endpoint
 app.post("/submit-picks", async (req, res) => {
   try {
-    if (!requireAdmin(req, res)) return;
+    //if (!requireAdmin(req, res)) return;
 
     const {
       leagueId,
