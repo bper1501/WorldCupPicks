@@ -1,5 +1,5 @@
 // src/pages/SubmitPicks.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getMatchesByStage, getPicks, submitPicks } from "../api/api";
 import { useSearchParams } from "react-router-dom";
 
@@ -9,6 +9,7 @@ function SubmitPicks() {
   const leagueIdFromUrl = searchParams.get("leagueId") || "";
   const userIdFromUrl = searchParams.get("userId") || "";
   const stageFromUrl = searchParams.get("stage") || "group-stage";
+  const matchRefs = useRef({});
 
   const hasUrlParams = Boolean(
   leagueIdFromUrl && userIdFromUrl && stageFromUrl
@@ -37,9 +38,36 @@ function SubmitPicks() {
 //Format stage name for display
 const stageDisplayName = formatStageName(stage);
 
+//Calculate how many picks have been made out of total matches for progress display
 const picksMade = Object.values(picks).filter(Boolean).length;
 const totalMatches = matches.length;
 
+//Change "GROUP_A" to "Group A", "ROUND_OF_16" to "Round of 16", etc. If no group, return "Other Matches"
+function formatGroupName(groupValue) {
+  if (!groupValue) return "Other Matches";
+
+  return groupValue
+    .replace("GROUP_", "Group ")
+    .replace("_", " ");
+}
+
+//Group matches by their group (e.g. Group A, Group B, etc.)
+function groupMatchesByGroup(matchesList) {
+  return matchesList.reduce((acc, match) => {
+    const groupName = formatGroupName(match.group);
+
+    if (!acc[groupName]) {
+      acc[groupName] = [];
+    }
+
+    acc[groupName].push(match);
+    return acc;
+  }, {});
+}
+
+const groupedMatches = groupMatchesByGroup(matches);
+
+//Render matches grouped by their group with a header for each group
   async function handleSubmitPicks(e) {
     e.preventDefault();
 
@@ -69,11 +97,26 @@ const totalMatches = matches.length;
     }
   }
 
-  function handlePickChange(matchId, value) {
+function handlePickChange(matchId, value) {
   setPicks((prev) => ({
     ...prev,
     [String(matchId)]: value
   }));
+
+  const currentIndex = matches.findIndex(
+    (match) => String(match.id) === String(matchId)
+  );
+
+  const nextMatch = matches[currentIndex + 1];
+
+  if (nextMatch) {
+    setTimeout(() => {
+      matchRefs.current[String(nextMatch.id)]?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }, 200);
+  }
 }
 
 const formattedPicks = matches.map((match) => ({
@@ -251,6 +294,7 @@ useEffect(() => {
       {matches.length > 0 && (
         <form onSubmit={handleSubmitPicks}>
           <h2>{stageDisplayName} Matches</h2>
+          <div className="sticky-progress">
           <p>
             <strong>Progress:</strong> {picksMade} of {totalMatches} picks made
           </p>
@@ -263,8 +307,9 @@ useEffect(() => {
             }}
           />
         </div>
+        </div>
 
-          {matches.map((match) => (
+          {/* {matches.map((match) => (
             <div
               className="match-card"
               key={match.id}
@@ -272,6 +317,9 @@ useEffect(() => {
                 border: "1px solid #ccc",
                 padding: "10px",
                 marginBottom: "10px"
+              }}
+              ref={(el) => {
+              matchRefs.current[String(match.id)] = el;
               }}
             >
 
@@ -328,6 +376,74 @@ useEffect(() => {
                 {match.teamB}
               </label>
             </div>
+          ))} */}
+
+          {/* Render matches grouped by their group (e.g. Group A, Group B, etc.) with a header for each group */}
+          {Object.entries(groupedMatches).map(([groupName, groupMatches]) => (
+            <section key={groupName}>
+              <h3 className="group-heading">{groupName}</h3>
+
+              {groupMatches
+                .sort(
+                  (a, b) =>
+                    new Date(a.kickoffTime) - new Date(b.kickoffTime)
+                )
+                .map((match) => (
+                  <div
+                    className="match-card"
+                    key={match.id}
+                    ref={(el) => {
+                      matchRefs.current[String(match.id)] = el;
+                    }}
+                  >
+                    <div className="match-header">
+                      <span>{match.teamA || match.homeTeam}</span>
+                      <span className="vs-text">VS</span>
+                      <span>{match.teamB || match.awayTeam}</span>
+                    </div>
+
+                    {match.kickoffTime && (
+                      <p className="match-time">
+                        {new Date(match.kickoffTime).toLocaleString()}
+                      </p>
+                    )}
+
+                    <label className="pick-option">
+                      <input
+                        type="radio"
+                        name={match.id}
+                        value="HOME"
+                        checked={picks[String(match.id)] === "HOME"}
+                        onChange={() => handlePickChange(match.id, "HOME")}
+                        required
+                      />
+                      {match.teamA || match.homeTeam}
+                    </label>
+
+                    <label className="pick-option">
+                      <input
+                        type="radio"
+                        name={match.id}
+                        value="DRAW"
+                        checked={picks[String(match.id)] === "DRAW"}
+                        onChange={() => handlePickChange(match.id, "DRAW")}
+                      />
+                      Draw
+                    </label>
+
+                    <label className="pick-option">
+                      <input
+                        type="radio"
+                        name={match.id}
+                        value="AWAY"
+                        checked={picks[String(match.id)] === "AWAY"}
+                        onChange={() => handlePickChange(match.id, "AWAY")}
+                      />
+                      {match.teamB || match.awayTeam}
+                    </label>
+                  </div>
+                ))}
+            </section>
           ))}
 
           <div>

@@ -85,7 +85,7 @@ function Dashboard() {
   return (
     <div className="page">
       <h1 className="page-title">Dashboard</h1>
-      <p>
+      {/* <p>
         <strong>Current Stage:</strong> {currentStageDisplay}
       </p>
       <p>
@@ -103,12 +103,44 @@ function Dashboard() {
           ? new Date(stageStatus.lockTime._seconds * 1000).toLocaleString()
           : String(stageStatus.lockTime)}
       </p>
-      )}
+      )} */}
 
+      <div className="dashboard-summary">
       <p>
-        <Link to="/submit-picks">Go to Submit Picks</Link>
+        <strong>Current Stage:</strong> {currentStageDisplay}
       </p>
 
+      <p>
+        <strong>Stage Status:</strong>{" "}
+        {stageStatus.isFinalized
+          ? "Finalized 🏁"
+          : stageStatus.isLocked
+          ? "Locked 🔒"
+          : "Open for Picks 🟢"}
+      </p>
+
+        {stageStatus.lockTime && (
+          <p>
+            <strong>Lock Time:</strong>{" "}
+            {stageStatus.lockTime._seconds
+              ? new Date(stageStatus.lockTime._seconds * 1000).toLocaleString()
+              : String(stageStatus.lockTime)}
+          </p>
+        )}
+      </div>
+
+      <div className="league-actions">
+        <Link className="button-link" to="/create-league">
+          Create League
+        </Link>
+
+        <Link className="button-link secondary-button" to="/">
+          Join League
+        </Link>
+      </div>
+      <br />
+
+    {leagues.length === 0 && (
       <form onSubmit={handleLoadLeagues}>
         <label>User ID</label>
         <input
@@ -122,41 +154,52 @@ function Dashboard() {
           {loading ? "Loading..." : "Load My Leagues"}
         </button>
       </form>
+    )}
 
       {error && <p style={{ color: "red" }}>{error}</p>}
+    {leagues.length > 0 && (
+      <>
+        <h2>My Leagues</h2>
 
-      <h2>My Leagues</h2>
+        {leagues.map((league) => {
+          const leagueId = league.leagueId || league.id;
 
-      {leagues.length === 0 && <p>No leagues loaded yet.</p>}
+          return (
+            <div className="league-card" key={leagueId}>
+              <h3>{league.leagueName || league.name}</h3>
 
-      {leagues.map((league) => (
-        <div className="card card-accent" key={league.leagueId || league.id}>
-          <h3>{league.leagueName || league.name}</h3>
+              <p className="league-meta">
+                <strong>Picks:</strong>{" "}
+                {pickStatuses[leagueId] || "Checking..."}
+              </p>
 
-          <p>
-            <strong>League ID:</strong>{" "}
-            {league.leagueId || league.id}
-          </p>
+              <p className="league-meta">
+                <strong>Invite Code:</strong> {league.inviteCode}
+              </p>
 
-          <p>
-            <strong>Invite Code:</strong>{" "}
-            {league.inviteCode}
-          </p>
-          <p>
-            <strong>Picks:</strong>{" "}
-            {pickStatuses[league.leagueId || league.id] || "Checking..."}
-          </p>
-          <Link className="button-link" to={`/submit-picks?leagueId=${league.leagueId || league.id}&userId=${userId}&stage=${currentStage}`}>
-            Submit Picks
-          </Link>
-          <br />
-          <Link className="button-link" to={`/leaderboard?leagueId=${league.leagueId || league.id}&stage=${currentStage}`}>
-            View Leaderboard
-          </Link>
-        </div>
-      ))}
+              <div className="league-actions">
+                <Link
+                  className="button-link"
+                  to={`/submit-picks?leagueId=${leagueId}&userId=${userId}&stage=${currentStage}`}
+                >
+                  Submit Picks
+                </Link>
+
+                <Link
+                  className="button-link secondary-button"
+                  to={`/leaderboard?leagueId=${leagueId}&stage=${currentStage}`}
+                >
+                  Leaderboard
+                </Link>
+              </div>
+            </div>
+          );
+        })}
+      </>
+    )}
+    
     </div>
-  );
-}
+)}
+
 
 export default Dashboard;
