@@ -1,5 +1,5 @@
 // src/pages/SubmitPicks.jsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getMatchesByStage, getPicks, submitPicks } from "../api/api";
 import { useSearchParams } from "react-router-dom";
 
@@ -9,6 +9,10 @@ function SubmitPicks() {
   const leagueIdFromUrl = searchParams.get("leagueId") || "";
   const userIdFromUrl = searchParams.get("userId") || "";
   const stageFromUrl = searchParams.get("stage") || "group-stage";
+
+  const hasUrlParams = Boolean(
+  leagueIdFromUrl && userIdFromUrl && stageFromUrl
+  );
 
   const [leagueId, setLeagueId] = useState(leagueIdFromUrl);
   const [userId, setUserId] = useState(userIdFromUrl);
@@ -20,6 +24,21 @@ function SubmitPicks() {
   const [error, setError] = useState("");
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+
+//Change "group-stage" to "Group Stage" etc.
+  function formatStageName(stageValue) {
+  return stageValue
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+//Format stage name for display
+const stageDisplayName = formatStageName(stage);
+
+const picksMade = Object.values(picks).filter(Boolean).length;
+const totalMatches = matches.length;
 
   async function handleSubmitPicks(e) {
     e.preventDefault();
@@ -62,9 +81,7 @@ const formattedPicks = matches.map((match) => ({
   pick: picks[String(match.id)]
 }));
 
-async function handleLoadMatches(e) {
-  e.preventDefault();
-
+async function loadMatchesAndPicks() {
   setError("");
   setMessage("");
   setLoadingMatches(true);
@@ -90,11 +107,6 @@ async function handleLoadMatches(e) {
 
       const savedPicksArray = savedData.picks || [];
 
-    //   const savedPicksObject = savedPicksArray.reduce((acc, item) => {
-    //     acc[item.matchId] = item.pick;
-    //     return acc;
-    //   }, {});
-
       const savedPicksObject = savedPicksArray.reduce((acc, item) => {
         acc[String(item.matchId)] = item.pick;
         return acc;
@@ -118,10 +130,78 @@ async function handleLoadMatches(e) {
   }
 }
 
-  return (
-    <div>
-      <h1>Submit Picks</h1>
+// async function handleLoadMatches(e) {
+//   e.preventDefault();
 
+//   setError("");
+//   setMessage("");
+//   setLoadingMatches(true);
+//   setMatches([]);
+//   setPicks({});
+//   setTiebreakerGoals("");
+
+//   try {
+//     const data = await getMatchesByStage(stage);
+
+//     const loadedMatches = Array.isArray(data)
+//       ? data
+//       : data.matches || [];
+
+//     setMatches(loadedMatches);
+
+//     try {
+//       const savedData = await getPicks({
+//         leagueId,
+//         stage,
+//         userId
+//       });
+
+//       const savedPicksArray = savedData.picks || [];
+
+//     //   const savedPicksObject = savedPicksArray.reduce((acc, item) => {
+//     //     acc[item.matchId] = item.pick;
+//     //     return acc;
+//     //   }, {});
+
+//       const savedPicksObject = savedPicksArray.reduce((acc, item) => {
+//         acc[String(item.matchId)] = item.pick;
+//         return acc;
+//       }, {});
+
+//       setPicks(savedPicksObject);
+
+//       if (savedData.tiebreakerGoals !== undefined) {
+//         setTiebreakerGoals(String(savedData.tiebreakerGoals));
+//       }
+
+//       setMessage("Existing picks loaded.");
+//     } catch {
+//       setMessage("No existing picks found. Make your selections below.");
+//     }
+//   } catch (err) {
+//     setError(err.message);
+//     setMatches([]);
+//   } finally {
+//     setLoadingMatches(false);
+//   }
+// }
+
+async function handleLoadMatches(e) {
+  e.preventDefault();
+  await loadMatchesAndPicks();
+}
+
+useEffect(() => {
+  if (leagueId && userId && stage) {
+    loadMatchesAndPicks();
+  }
+}, []);
+
+  return (
+    <div className="page">
+      <h1 className="page-title">Submit Picks</h1>
+
+    {!hasUrlParams && (
       <form onSubmit={handleLoadMatches}>
         <div>
           <label>League ID</label>
@@ -144,7 +224,7 @@ async function handleLoadMatches(e) {
         <div>
           <label>Stage</label>
           <input
-            value={stage}
+            value={stageDisplayName}
             onChange={(e) => setStage(e.target.value)}
             required
           />
@@ -154,13 +234,39 @@ async function handleLoadMatches(e) {
           {loadingMatches ? "Loading..." : "Load Matches"}
         </button>
       </form>
+    )}
+
+
+    {hasUrlParams && (
+      <div>
+        <p>
+          <strong>League ID:</strong> {leagueId}
+        </p>
+        <p>
+          <strong>Stage:</strong> {stageDisplayName}
+        </p>
+      </div>
+    )}
 
       {matches.length > 0 && (
         <form onSubmit={handleSubmitPicks}>
-          <h2>{stage} Matches</h2>
+          <h2>{stageDisplayName} Matches</h2>
+          <p>
+            <strong>Progress:</strong> {picksMade} of {totalMatches} picks made
+          </p>
+
+          <div className="progress-bar">
+          <div
+            className="progress-fill"
+            style={{
+              width: `${(picksMade / totalMatches) * 100}%`
+            }}
+          />
+        </div>
 
           {matches.map((match) => (
             <div
+              className="match-card"
               key={match.id}
               style={{
                 border: "1px solid #ccc",
@@ -168,12 +274,14 @@ async function handleLoadMatches(e) {
                 marginBottom: "10px"
               }}
             >
-              <p>
-                <strong>{match.teamA}</strong> vs{" "}
-                <strong>{match.teamB}</strong>
-              </p>
 
-              <label>
+            <div className="match-header">
+              <span>{match.teamA}</span>
+              <span className="vs-text">VS</span>
+              <span>{match.teamB}</span>
+            </div>
+
+              <label className="pick-option">
                 <input
                   type="radio"
                   name={match.id}
@@ -190,7 +298,7 @@ async function handleLoadMatches(e) {
 
               <br />
 
-              <label>
+              <label className="pick-option">
                 <input
                   type="radio"
                   name={match.id}
@@ -206,7 +314,7 @@ async function handleLoadMatches(e) {
 
               <br />
 
-              <label>
+              <label className="pick-option">
                 <input
                   type="radio"
                   name={match.id}
@@ -234,7 +342,7 @@ async function handleLoadMatches(e) {
             />
           </div>
 
-          <button type="submit" disabled={submitting}>
+          <button className="sticky-submit" type="submit" disabled={submitting}>
             {submitting ? "Submitting..." : "Submit Picks"}
           </button>
         </form>

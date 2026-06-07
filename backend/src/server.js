@@ -1303,15 +1303,25 @@ app.get("/current-stage", async (req, res) => {
     }
 
     const settingsData = settingsSnap.data();
+    const currentStage = settingsData.currentStage;
 
-    if (!settingsData.currentStage) {
+    if (!currentStage) {
       return res.status(400).json({
         error: "currentStage is not set"
       });
     }
 
+    const stageRef = db.collection("stages").doc(currentStage);
+    const stageSnap = await stageRef.get();
+
+    const stageData = stageSnap.exists ? stageSnap.data() : {};
+
     res.json({
-      currentStage: settingsData.currentStage
+      currentStage,
+      currentStageDisplay: stageData.displayName || currentStage,
+      isLocked: stageData.isLocked ?? false,
+      isFinalized: stageData.isFinalized ?? false,
+      lockTime: stageData.lockTime || null
     });
 
   } catch (error) {

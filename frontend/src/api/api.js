@@ -95,3 +95,18 @@ export async function calculateStageScores({ leagueId, stage }) {
 
   return handleResponse(response);
 }
+
+// Get leaderboard by league and stage
+export async function getLeaderboard({ leagueId, stage }) {
+  const response = await fetch(
+    `${API_BASE_URL}/leaderboard/${leagueId}/${stage}`
+  );
+
+  return handleResponse(response);
+}
+
+// Get current stage
+export async function getCurrentStage() {
+  const response = await fetch(`${API_BASE_URL}/current-stage`);
+  return handleResponse(response);
+}
