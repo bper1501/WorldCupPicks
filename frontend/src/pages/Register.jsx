@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { loginUser } from "../api/api";
+import { registerUser } from "../api/api";
 
-function Login() {
+function Register() {
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
@@ -10,14 +10,14 @@ function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e) {
+  async function handleRegister(e) {
     e.preventDefault();
 
     setError("");
     setLoading(true);
 
     try {
-      const data = await loginUser({
+      const data = await registerUser({
         username,
         password
       });
@@ -33,9 +33,9 @@ function Login() {
 
   return (
     <div className="page">
-      <h1 className="page-title">Log In</h1>
+      <h1 className="page-title">Create Account</h1>
 
-      <form className="card" onSubmit={handleLogin}>
+      <form className="card" onSubmit={handleRegister}>
         <label>Username</label>
         <input
           value={username}
@@ -49,22 +49,23 @@ function Login() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          placeholder="At least 6 characters"
           required
         />
 
         <button type="submit" disabled={loading}>
-          {loading ? "Logging in..." : "Log In"}
+          {loading ? "Creating..." : "Register"}
         </button>
       </form>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       <p>
-        New here?{" "}
-        <Link to="/register">Create an account</Link>
+        Already have an account?{" "}
+        <Link to="/login">Log in</Link>
       </p>
     </div>
   );
 }
 
-export default Login;
+export default Register;

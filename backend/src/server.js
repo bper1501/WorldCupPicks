@@ -6,6 +6,7 @@ import cors from "cors";
 import { db } from "./firebase.js";
 import admin from "firebase-admin";
 import axios from "axios";
+import bcrypt from "bcryptjs";
 
 const app = express();
 app.use(cors());
@@ -2318,6 +2319,121 @@ app.get("/season-leaderboard/:leagueId", async (req, res) => {
 
     res.status(500).json({
       error: "Failed to fetch season leaderboard"
+    });
+  }
+});
+
+// POST REGISTER to create user accounts for authentication and tracking - this is separate from league membership which is just based on username strings in the league document
+app.post("/register", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({
+        error: "Username and password are required"
+      });
+    }
+
+    //const normalizedUsername = username.trim();
+    const normalizedUsername =username.trim().toLowerCase();
+
+    const usernameRegex = /^[a-z0-9_-]+$/;
+
+    if (!usernameRegex.test(normalizedUsername)) {
+      return res.status(400).json({
+        error:
+          "Username can only contain letters, numbers, underscores, and hyphens"
+      });
+    }
+
+    if (normalizedUsername.length < 3) {
+      return res.status(400).json({
+        error: "Username must be at least 3 characters"
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters"
+      });
+    }
+
+    const userRef = db.collection("users").doc(normalizedUsername);
+    const userSnap = await userRef.get();
+
+    if (userSnap.exists) {
+      return res.status(409).json({
+        error: "Username already exists"
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await userRef.set({
+      username: normalizedUsername,
+      passwordHash,
+      createdAt: new Date()
+    });
+
+    res.status(201).json({
+      message: "User registered successfully",
+      userId: normalizedUsername,
+      username: normalizedUsername
+    });
+  } catch (error) {
+    console.error("Register error:", error);
+
+    res.status(500).json({
+      error: "Failed to register user"
+    });
+  }
+});
+
+app.post("/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({
+        error: "Username and password are required"
+      });
+    }
+
+    //const normalizedUsername = username.trim();
+    const normalizedUsername =username.trim().toLowerCase();
+
+    const userRef = db.collection("users").doc(normalizedUsername);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return res.status(401).json({
+        error: "Invalid username or password"
+      });
+    }
+
+    const userData = userSnap.data();
+
+    const passwordMatches = await bcrypt.compare(
+      password,
+      userData.passwordHash
+    );
+
+    if (!passwordMatches) {
+      return res.status(401).json({
+        error: "Invalid username or password"
+      });
+    }
+
+    res.json({
+      message: "Login successful",
+      userId: userData.username,
+      username: userData.username
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+
+    res.status(500).json({
+      error: "Failed to log in"
     });
   }
 });

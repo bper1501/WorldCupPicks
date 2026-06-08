@@ -278,3 +278,138 @@ label {
 .secondary-button {
   background: var(--red);
 }
+
+.leaderboard-card {
+  background: var(--white);
+  border: 3px solid var(--black);
+  border-radius: 18px;
+  padding: 16px;
+  margin: 16px 0;
+  box-shadow: 6px 6px 0 var(--yellow);
+
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.leaderboard-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.4rem;
+  text-transform: uppercase;
+}
+
+.rank-badge {
+  min-width: 58px;
+  height: 58px;
+  border: 3px solid var(--black);
+  border-radius: 50%;
+  background: var(--green);
+  color: white;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 900;
+  font-size: 1.1rem;
+  box-shadow: 4px 4px 0 var(--black);
+}
+
+.rank-gold {
+  background: var(--yellow);
+  color: var(--black);
+}
+
+.rank-silver {
+  background: #d9d9d9;
+  color: var(--black);
+}
+
+.rank-bronze {
+  background: #c97a40;
+  color: var(--black);
+}
+
+.logged-in-user {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 2px dashed var(--black);
+  font-weight: 800;
+}
+
+.lock-banner {
+  background: var(--white);
+  border: 3px solid var(--black);
+  border-left: 10px solid var(--red);
+  border-radius: 18px;
+  padding: 16px;
+  margin: 18px 0;
+  box-shadow: 5px 5px 0 var(--black);
+}
+
+.lock-banner p {
+  margin-bottom: 0;
+}
+
+.pick-option:has(input:disabled) {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.navbar {
+  background: var(--green);
+  border-bottom: 4px solid var(--black);
+  padding: 14px 18px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.navbar a {
+  color: white;
+  text-decoration: none;
+  font-weight: 900;
+}
+
+.navbar-brand {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.navbar-links {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.navbar-links a {
+  background: var(--white);
+  color: var(--black);
+  border: 3px solid var(--black);
+  border-radius: 999px;
+  padding: 8px 12px;
+  box-shadow: 3px 3px 0 var(--black);
+}
+
+@media (max-width: 520px) {
+  .navbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .navbar-links {
+    width: 100%;
+  }
+
+  .navbar-links a {
+    flex: 1;
+    text-align: center;
+  }
+}

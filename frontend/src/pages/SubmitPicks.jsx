@@ -1,6 +1,6 @@
 // src/pages/SubmitPicks.jsx
 import { useEffect, useRef, useState } from "react";
-import { getMatchesByStage, getPicks, submitPicks } from "../api/api";
+import { getMatchesByStage, getPicks, submitPicks, getCurrentStage } from "../api/api";
 import { useSearchParams } from "react-router-dom";
 
 function SubmitPicks() {
@@ -9,6 +9,8 @@ function SubmitPicks() {
   const leagueIdFromUrl = searchParams.get("leagueId") || "";
   const userIdFromUrl = searchParams.get("userId") || "";
   const stageFromUrl = searchParams.get("stage") || "group-stage";
+  const leagueNameFromUrl =
+  searchParams.get("leagueName") || "";
   const matchRefs = useRef({});
 
   const hasUrlParams = Boolean(
@@ -25,6 +27,14 @@ function SubmitPicks() {
   const [error, setError] = useState("");
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [stageStatus, setStageStatus] = useState({
+    isLocked: false,
+    isFinalized: false,
+    lockTime: null
+  });
+
+  const picksLocked =
+  stageStatus.isLocked || stageStatus.isFinalized;
 
 
 //Change "group-stage" to "Group Stage" etc.
@@ -142,6 +152,22 @@ async function loadMatchesAndPicks() {
     setMatches(loadedMatches);
 
     try {
+      const stageData = await getCurrentStage();
+
+      setStageStatus({
+        isLocked: stageData.isLocked ?? false,
+        isFinalized: stageData.isFinalized ?? false,
+        lockTime: stageData.lockTime || null
+      });
+
+      const data = await getMatchesByStage(stage);
+
+      const loadedMatches = Array.isArray(data)
+        ? data
+        : data.matches || [];
+
+      setMatches(loadedMatches);
+
       const savedData = await getPicks({
         leagueId,
         stage,
@@ -240,6 +266,8 @@ useEffect(() => {
   }
 }, []);
 
+
+
   return (
     <div className="page">
       <h1 className="page-title">Submit Picks</h1>
@@ -283,10 +311,24 @@ useEffect(() => {
     {hasUrlParams && (
       <div>
         <p>
-          <strong>League ID:</strong> {leagueId}
+          <strong>League:</strong>{" "}
+          {leagueNameFromUrl || leagueId}
         </p>
         <p>
           <strong>Stage:</strong> {stageDisplayName}
+        </p>
+      </div>
+    )}
+
+    {picksLocked && (
+      <div className="lock-banner">
+        <strong>
+          {stageStatus.isFinalized
+            ? "Stage finalized 🏁"
+            : "Picks locked 🔒"}
+        </strong>
+        <p>
+          You can view your picks, but changes can no longer be submitted.
         </p>
       </div>
     )}
@@ -414,6 +456,7 @@ useEffect(() => {
                         name={match.id}
                         value="HOME"
                         checked={picks[String(match.id)] === "HOME"}
+                        disabled={picksLocked}
                         onChange={() => handlePickChange(match.id, "HOME")}
                         required
                       />
@@ -426,6 +469,7 @@ useEffect(() => {
                         name={match.id}
                         value="DRAW"
                         checked={picks[String(match.id)] === "DRAW"}
+                        disabled={picksLocked}
                         onChange={() => handlePickChange(match.id, "DRAW")}
                       />
                       Draw
@@ -437,6 +481,7 @@ useEffect(() => {
                         name={match.id}
                         value="AWAY"
                         checked={picks[String(match.id)] === "AWAY"}
+                        disabled={picksLocked}
                         onChange={() => handlePickChange(match.id, "AWAY")}
                       />
                       {match.teamB || match.awayTeam}
@@ -458,8 +503,8 @@ useEffect(() => {
             />
           </div>
 
-          <button className="sticky-submit" type="submit" disabled={submitting}>
-            {submitting ? "Submitting..." : "Submit Picks"}
+          <button className="sticky-submit" type="submit" disabled={submitting || picksLocked}>
+            {submitting ? "Submitting..." : picksLocked ? "Picks Locked" : "Submit Picks"}
           </button>
         </form>
       )}

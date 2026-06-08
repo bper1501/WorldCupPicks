@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { joinLeague } from "../api/api";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
 
 export default function JoinLeague() {
   const [inviteCode, setInviteCode] = useState("");
   const [userId, setUserId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   async function handleJoinLeague(e) {
     e.preventDefault();
@@ -22,6 +25,9 @@ export default function JoinLeague() {
 
       setMessage(data.message || "Joined league successfully!");
       console.log("Join league response:", data);
+
+      localStorage.setItem("worldCupUserId", userId);
+      navigate("/dashboard");
     } catch (err) {
       setError(err.message);
     }

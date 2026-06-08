@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createLeague } from "../api/api";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 function CreateLeague() {
   const [leagueName, setLeagueName] = useState("");
@@ -8,6 +9,7 @@ function CreateLeague() {
   const [createdLeague, setCreatedLeague] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -24,6 +26,9 @@ function CreateLeague() {
 
       setCreatedLeague(data);
       setLeagueName("");
+
+      localStorage.setItem("worldCupUserId", userId);
+      navigate("/dashboard");
     } catch (err) {
       setError(err.message);
     } finally {

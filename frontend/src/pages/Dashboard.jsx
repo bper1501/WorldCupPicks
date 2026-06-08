@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getUserLeagues, getCurrentStage, getPicks } from "../api/api";
 
 function Dashboard() {
-  const [userId, setUserId] = useState("");
+  //const [userId, setUserId] = useState("");
+  const [userId, setUserId] = useState(() => {
+  return localStorage.getItem("worldCupUserId") || "";
+  });
   const [currentStage, setCurrentStage] = useState("group-stage");
   const [currentStageDisplay, setCurrentStageDisplay] = useState("Group Stage");
   const [pickStatuses, setPickStatuses] = useState({});
@@ -74,6 +77,7 @@ function Dashboard() {
     );
 
     setPickStatuses(statuses);
+    localStorage.setItem("worldCupUserId", userId);
   } catch (err) {
     setError(err.message);
     setLeagues([]);
@@ -81,6 +85,29 @@ function Dashboard() {
     setLoading(false);
   }
 }
+
+  useEffect(() => {
+    if (userId) {
+      handleLoadLeagues({ preventDefault: () => {} });
+    }
+  }, []);
+
+function handleLogout() {
+  localStorage.removeItem("worldCupUserId");
+
+  setUserId("");
+  setLeagues([]);
+  setPickStatuses({});
+  setCurrentStage("group-stage");
+  setCurrentStageDisplay("Group Stage");
+
+  setStageStatus({
+    isLocked: false,
+    isFinalized: false,
+    lockTime: null
+  });
+}
+
 
   return (
     <div className="page">
@@ -127,6 +154,10 @@ function Dashboard() {
               : String(stageStatus.lockTime)}
           </p>
         )}
+
+        <div className="logged-in-user">
+          <strong>Signed in as:</strong> {userId}
+        </div>
       </div>
 
       <div className="league-actions">
@@ -137,6 +168,13 @@ function Dashboard() {
         <Link className="button-link secondary-button" to="/">
           Join League
         </Link>
+
+        <button
+          className="button-link secondary-button"
+          onClick={handleLogout}
+        >
+          Switch User
+        </button>
       </div>
       <br />
 
@@ -178,16 +216,35 @@ function Dashboard() {
               </p>
 
               <div className="league-actions">
-                <Link
+                {/* <Link
                   className="button-link"
                   to={`/submit-picks?leagueId=${leagueId}&userId=${userId}&stage=${currentStage}`}
                 >
                   Submit Picks
+                </Link> */}
+
+                <Link
+                  className="button-link"
+                  to={`/submit-picks?leagueId=${leagueId}&leagueName=${encodeURIComponent(
+                    league.leagueName || league.name
+                  )}&userId=${userId}&stage=${currentStage}`}
+                >
+                  Submit Picks
                 </Link>
+
+
+                {/* <Link
+                  className="button-link secondary-button"
+                  to={`/leaderboard?leagueId=${leagueId}&stage=${currentStage}`}
+                >
+                  Leaderboard
+                </Link> */}
 
                 <Link
                   className="button-link secondary-button"
-                  to={`/leaderboard?leagueId=${leagueId}&stage=${currentStage}`}
+                  to={`/leaderboard?leagueId=${leagueId}&leagueName=${encodeURIComponent(
+                    league.leagueName || league.name
+                  )}&stage=${currentStage}`}
                 >
                   Leaderboard
                 </Link>

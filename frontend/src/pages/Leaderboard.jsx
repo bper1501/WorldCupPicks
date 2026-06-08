@@ -1,13 +1,18 @@
 // src/pages/Leaderboard.jsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getLeaderboard } from "../api/api";
+import { Link } from "react-router-dom";
 
 function Leaderboard() {
   const [searchParams] = useSearchParams();
 
   const leagueIdFromUrl = searchParams.get("leagueId") || "";
   const stageFromUrl = searchParams.get("stage") || "group-stage";
+  const leagueNameFromUrl =
+  searchParams.get("leagueName") || "";
+
+  const hasUrlParams = Boolean(leagueIdFromUrl && stageFromUrl);
 
   const [leagueId, setLeagueId] = useState(leagueIdFromUrl);
   const [stage, setStage] = useState(stageFromUrl);
@@ -15,16 +20,21 @@ function Leaderboard() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleLoadLeaderboard(e) {
-    e.preventDefault();
 
+  function formatStageName(stageValue) {
+    return stageValue
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+
+  async function loadLeaderboard() {
     setError("");
     setLoading(true);
     setLeaderboard([]);
 
     try {
       const data = await getLeaderboard({ leagueId, stage });
-
       console.log("Leaderboard response:", data);
 
       const loadedLeaderboard = Array.isArray(data)
@@ -40,64 +50,109 @@ function Leaderboard() {
     }
   }
 
+  async function handleLoadLeaderboard(e) {
+    e.preventDefault();
+    await loadLeaderboard();
+  }
+
+  useEffect(() => {
+    if (leagueId && stage) {
+      loadLeaderboard();
+    }
+  }, []);
+
   return (
-    <div>
-      <h1>Leaderboard</h1>
+    <div className="page">
+      <h1 className="page-title">Leaderboard</h1>
 
-      <form onSubmit={handleLoadLeaderboard}>
-        <div>
-          <label>League ID</label>
-          <input
-            value={leagueId}
-            onChange={(e) => setLeagueId(e.target.value)}
-            required
-          />
+      <Link className="button-link" to="/dashboard">
+        Back to Dashboard
+      </Link>
+
+
+      {hasUrlParams && (
+        <div className="dashboard-summary">
+        <p>
+          <strong>League:</strong>{" "}
+          {leagueNameFromUrl || leagueId}
+        </p>
+
+          <p>
+            <strong>Stage:</strong> {formatStageName(stage)}
+          </p>
         </div>
+      )}
 
-        <div>
-          <label>Stage</label>
-          <input
-            value={stage}
-            onChange={(e) => setStage(e.target.value)}
-            required
-          />
-        </div>
+      {!hasUrlParams && (
+        <form onSubmit={handleLoadLeaderboard}>
+          <div>
+            <label>League ID</label>
+            <input
+              value={leagueId}
+              onChange={(e) => setLeagueId(e.target.value)}
+              required
+            />
+          </div>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Loading..." : "Load Leaderboard"}
-        </button>
-      </form>
+          <div>
+            <label>Stage</label>
+            <input
+              value={stage}
+              onChange={(e) => setStage(e.target.value)}
+              required
+            />
+          </div>
+
+          <button type="submit" disabled={loading}>
+            {loading ? "Loading..." : "Load Leaderboard"}
+          </button>
+        </form>
+      )}
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      <h2>{stage} Standings</h2>
+      {loading && <p>Loading leaderboard...</p>}
 
-      {leaderboard.length === 0 && !loading && (
+      {!loading && leaderboard.length === 0 && (
         <p>No leaderboard loaded yet.</p>
       )}
 
       {leaderboard.length > 0 && (
-        <table border="1" cellPadding="8">
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>User</th>
-              <th>Points</th>
-              <th>Tiebreaker</th>
-            </tr>
-          </thead>
+        <div>
+          <h2>{formatStageName(stage)} Standings</h2>
 
-          <tbody>
-            {leaderboard.map((entry, index) => (
-              <tr key={entry.userId || index}>
-                <td>{index + 1}</td>
-                <td>{entry.userId}</td>
-                <td>{entry.points ?? entry.score ?? 0}</td>
-                <td>{entry.tiebreakerGoals ?? "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          {leaderboard.map((entry, index) => {
+            const points = entry.points ?? entry.score ?? 0;
+            const rank = index + 1;
+            const rankClass =
+              rank === 1
+                ? "rank-gold"
+                : rank === 2
+                ? "rank-silver"
+                : rank === 3
+                ? "rank-bronze"
+                : "";
+
+            return (
+              <div className="leaderboard-card" key={entry.userId || index}>
+                <div className={`rank-badge ${rankClass}`}>#{rank}</div>
+
+                <div>
+                  <h3>{entry.userId}</h3>
+
+                  <p className="league-meta">
+                    <strong>{points}</strong> pts
+                  </p>
+
+                  <p className="league-meta">
+                    <strong>Tiebreaker:</strong>{" "}
+                    {entry.tiebreakerGoals ?? "-"}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
