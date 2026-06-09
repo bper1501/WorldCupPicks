@@ -7,18 +7,24 @@ function SubmitPicks() {
  const [searchParams] = useSearchParams();
 
   const leagueIdFromUrl = searchParams.get("leagueId") || "";
-  const userIdFromUrl = searchParams.get("userId") || "";
+  // const userIdFromUrl = searchParams.get("userId") || "";
+  const userIdFromStorage = localStorage.getItem("worldCupUserId") || "";
   const stageFromUrl = searchParams.get("stage") || "group-stage";
   const leagueNameFromUrl =
   searchParams.get("leagueName") || "";
   const matchRefs = useRef({});
 
+  // const hasUrlParams = Boolean(
+  // leagueIdFromUrl && userIdFromUrl && stageFromUrl
+  // );
+
   const hasUrlParams = Boolean(
-  leagueIdFromUrl && userIdFromUrl && stageFromUrl
-  );
+  leagueIdFromUrl && userIdFromStorage && stageFromUrl
+);
 
   const [leagueId, setLeagueId] = useState(leagueIdFromUrl);
-  const [userId, setUserId] = useState(userIdFromUrl);
+  // const [userId, setUserId] = useState(userIdFromUrl);
+  const [userId] = useState(userIdFromStorage);
   const [stage, setStage] = useState(stageFromUrl);
   const [matches, setMatches] = useState([]);
   const [picks, setPicks] = useState({});
@@ -334,22 +340,26 @@ useEffect(() => {
     )}
 
       {matches.length > 0 && (
-        <form onSubmit={handleSubmitPicks}>
-          <h2>{stageDisplayName} Matches</h2>
-          <div className="sticky-progress">
+        <div className="sticky-progress">
           <p>
             <strong>Progress:</strong> {picksMade} of {totalMatches} picks made
           </p>
 
           <div className="progress-bar">
-          <div
-            className="progress-fill"
-            style={{
-              width: `${(picksMade / totalMatches) * 100}%`
-            }}
-          />
+            <div
+              className="progress-fill"
+              style={{
+                width: `${totalMatches ? (picksMade / totalMatches) * 100 : 0}%`
+              }}
+            />
+          </div>
         </div>
-        </div>
+      )}
+
+      {matches.length > 0 && (
+        <form onSubmit={handleSubmitPicks}>
+          <h2>{stageDisplayName} Matches</h2>
+  
 
           {/* {matches.map((match) => (
             <div

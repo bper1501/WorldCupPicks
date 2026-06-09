@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getUserLeagues, getCurrentStage, getPicks } from "../api/api";
 
+
 function Dashboard() {
+  const navigate = useNavigate();
   //const [userId, setUserId] = useState("");
   const [userId, setUserId] = useState(() => {
   return localStorage.getItem("worldCupUserId") || "";
@@ -86,11 +88,19 @@ function Dashboard() {
   }
 }
 
+  // useEffect(() => {
+  //   if (userId) {
+  //     handleLoadLeagues({ preventDefault: () => {} });
+  //   }
+  // }, []);
+
   useEffect(() => {
-    if (userId) {
-      handleLoadLeagues({ preventDefault: () => {} });
-    }
-  }, []);
+  if (userId) {
+    handleLoadLeagues({
+      preventDefault: () => {}
+    });
+  }
+}, [userId]);
 
 function handleLogout() {
   localStorage.removeItem("worldCupUserId");
@@ -108,29 +118,19 @@ function handleLogout() {
   });
 }
 
+//Now being handled by ProtectedRoute
+// useEffect(() => {
+//   const storedUserId = localStorage.getItem("worldCupUserId");
+
+//   if (!storedUserId) {
+//     navigate("/login");
+//   }
+// }, [navigate]);
+
 
   return (
     <div className="page">
       <h1 className="page-title">Dashboard</h1>
-      {/* <p>
-        <strong>Current Stage:</strong> {currentStageDisplay}
-      </p>
-      <p>
-        <strong>Stage Status:</strong>{" "}
-        {stageStatus.isFinalized
-          ? "Finalized 🏁"
-          : stageStatus.isLocked
-          ? "Locked 🔒"
-          : "Open for Picks 🟢"}
-      </p>
-      {stageStatus.lockTime && (
-      <p>
-        <strong>Lock Time:</strong>{" "}
-        {stageStatus.lockTime._seconds
-          ? new Date(stageStatus.lockTime._seconds * 1000).toLocaleString()
-          : String(stageStatus.lockTime)}
-      </p>
-      )} */}
 
       <div className="dashboard-summary">
       <p>
@@ -162,39 +162,43 @@ function handleLogout() {
 
       <div className="league-actions">
         <Link className="button-link" to="/create-league">
-          Create League
+          🏆 Create League
         </Link>
 
         <Link className="button-link secondary-button" to="/">
-          Join League
+          👥 Join League
         </Link>
 
-        <button
-          className="button-link secondary-button"
-          onClick={handleLogout}
-        >
-          Switch User
-        </button>
       </div>
       <br />
 
-    {leagues.length === 0 && (
-      <form onSubmit={handleLoadLeagues}>
-        <label>User ID</label>
-        <input
-          type="text"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          required
-        />
-
-        <button type="submit" disabled={loading}>
-          {loading ? "Loading..." : "Load My Leagues"}
-        </button>
-      </form>
-    )}
 
       {error && <p style={{ color: "red" }}>{error}</p>}
+      {loading && <p>Loading your leagues...</p>}
+
+      
+      {!loading && leagues.length === 0 && (
+        <div className="card">
+          <h3>No leagues yet</h3>
+
+          <p>
+            Create a league or join one with an invite code to get started.
+          </p>
+
+          <div className="league-actions">
+            <Link className="button-link" to="/create-league">
+              🏆 Create League
+            </Link>
+
+            <Link
+              className="button-link secondary-button"
+              to="/"
+            >
+              👥 Join League
+            </Link>
+          </div>
+        </div>
+      )}
     {leagues.length > 0 && (
       <>
         <h2>My Leagues</h2>
@@ -204,49 +208,47 @@ function handleLogout() {
 
           return (
             <div className="league-card" key={leagueId}>
-              <h3>{league.leagueName || league.name}</h3>
+              <h3 className="league-title">
+                {league.leagueName || league.name}
+              </h3>
 
-              <p className="league-meta">
-                <strong>Picks:</strong>{" "}
-                {pickStatuses[leagueId] || "Checking..."}
-              </p>
+            <div className="league-status-row">
+              <span
+                className={`status-chip ${
+                  pickStatuses[leagueId] === "Submitted ✅"
+                    ? "submitted"
+                    : "missing"
+                }`}
+              >
+                {pickStatuses[leagueId] === "Submitted ✅"
+                  ? "Picks Submitted"
+                  : "Missing Picks"}
+              </span>
+            </div>
 
-              <p className="league-meta">
-                <strong>Invite Code:</strong> {league.inviteCode}
-              </p>
+            <p className="league-invite">
+              Invite Code •{" "}
+              <strong>{league.inviteCode}</strong>
+            </p>
 
               <div className="league-actions">
-                {/* <Link
-                  className="button-link"
-                  to={`/submit-picks?leagueId=${leagueId}&userId=${userId}&stage=${currentStage}`}
-                >
-                  Submit Picks
-                </Link> */}
 
                 <Link
                   className="button-link"
                   to={`/submit-picks?leagueId=${leagueId}&leagueName=${encodeURIComponent(
                     league.leagueName || league.name
-                  )}&userId=${userId}&stage=${currentStage}`}
+                  )}&stage=${currentStage}`}
                 >
-                  Submit Picks
+                  ✏️ Submit Picks
                 </Link>
 
-
-                {/* <Link
-                  className="button-link secondary-button"
-                  to={`/leaderboard?leagueId=${leagueId}&stage=${currentStage}`}
-                >
-                  Leaderboard
-                </Link> */}
-
                 <Link
-                  className="button-link secondary-button"
+                  className="button-link accent-button"
                   to={`/leaderboard?leagueId=${leagueId}&leagueName=${encodeURIComponent(
                     league.leagueName || league.name
                   )}&stage=${currentStage}`}
                 >
-                  Leaderboard
+                   🏅 Leaderboard
                 </Link>
               </div>
             </div>

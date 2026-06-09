@@ -5,7 +5,8 @@ import { useNavigate } from "react-router-dom";
 
 function CreateLeague() {
   const [leagueName, setLeagueName] = useState("");
-  const [userId, setUserId] = useState("");
+  // const [userId, setUserId] = useState(""); // We will get this from localStorage instead of user input
+  const userId = localStorage.getItem("worldCupUserId");
   const [createdLeague, setCreatedLeague] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,6 +18,11 @@ function CreateLeague() {
     setError("");
     setCreatedLeague(null);
     setLoading(true);
+
+    if (!userId) {
+      setError("You must be logged in to create a league.");
+      return;
+    }
 
     try {
       const data = await createLeague({
@@ -37,62 +43,49 @@ function CreateLeague() {
   }
 
   return (
-    <div>
-      <h1>Create League</h1>
+  <div className="page">
+    <h1 className="page-title">Create League</h1>
+
+    <div className="card card-accent">
+      <h2>Start a New Pool</h2>
 
       <p>
-        Already have an invite code?{" "}
-        <Link to="/">
-            Join a league
-        </Link>
-    Í</p>
+        Create a league, invite friends, and compete through each World Cup stage.
+      </p>
 
-    <p>
-      <Link to="/dashboard">Go to Dashboard</Link>
-    </p>
+      <p className="league-meta">
+        <strong>Signed in as:</strong> {userId}
+      </p>
 
       <form onSubmit={handleSubmit}>
-        <div>
-          <label>League Name</label>
-          <input
-            type="text"
-            value={leagueName}
-            onChange={(e) => setLeagueName(e.target.value)}
-            placeholder="World Cup Pool"
-            required
-          />
-        </div>
+        <label>League Name</label>
 
-        <div>
-          <label>User ID</label>
-          <input
-            type="text"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            placeholder="brayan123"
-            required
-          />
-        </div>
+        <input
+          type="text"
+          value={leagueName}
+          onChange={(e) => setLeagueName(e.target.value)}
+          placeholder="World Cup Pool"
+          required
+        />
 
         <button type="submit" disabled={loading}>
           {loading ? "Creating..." : "Create League"}
         </button>
       </form>
-
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
-      {createdLeague && (
-        <div>
-          <h2>League Created!</h2>
-          <p>
-            <strong>League ID:</strong> {createdLeague.leagueId}
-          </p>
-          <p>
-            <strong>Invite Code:</strong> {createdLeague.inviteCode}
-          </p>
-        </div>
-      )}
     </div>
+
+    {error && <p style={{ color: "red" }}>{error}</p>}
+
+    <div className="league-actions">
+      <Link className="button-link secondary-button" to="/">
+        Join a League
+      </Link>
+
+      <Link className="button-link" to="/dashboard">
+        Back to Dashboard
+      </Link>
+    </div>
+  </div>
   );
 }
 

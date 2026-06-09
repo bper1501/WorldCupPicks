@@ -114,7 +114,14 @@ function Leaderboard() {
       {loading && <p>Loading leaderboard...</p>}
 
       {!loading && leaderboard.length === 0 && (
-        <p>No leaderboard loaded yet.</p>
+        <div className="card">
+          <h3>No leaderboard yet</h3>
+
+          <p>
+            Scores will appear once picks are submitted
+            and matches are finalized.
+          </p>
+        </div>
       )}
 
       {leaderboard.length > 0 && (
@@ -125,13 +132,13 @@ function Leaderboard() {
             const points = entry.points ?? entry.score ?? 0;
             const rank = index + 1;
             const rankClass =
-              rank === 1
-                ? "rank-gold"
-                : rank === 2
-                ? "rank-silver"
-                : rank === 3
-                ? "rank-bronze"
-                : "";
+            rank === 1
+              ? "rank-gold"
+              : rank === 2
+              ? "rank-silver"
+              : rank === 3
+              ? "rank-bronze"
+              : "rank-default";
 
             return (
               <div className="leaderboard-card" key={entry.userId || index}>
@@ -144,10 +151,10 @@ function Leaderboard() {
                     <strong>{points}</strong> pts
                   </p>
 
-                  <p className="league-meta">
+                  {/* <p className="league-meta">
                     <strong>Tiebreaker:</strong>{" "}
                     {entry.tiebreakerGoals ?? "-"}
-                  </p>
+                  </p> */}
                 </div>
               </div>
             );
