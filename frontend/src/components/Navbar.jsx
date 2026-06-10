@@ -6,11 +6,10 @@ function Navbar() {
   const userId = localStorage.getItem("worldCupUserId");
   const [menuOpen, setMenuOpen] = useState(false);
 
-  function handleLogout() {
-    localStorage.removeItem("worldCupUserId");
-    navigate("/login");
-    window.location.reload();
-  }
+function handleLogout() {
+  localStorage.removeItem("worldCupUserId");
+  navigate("/login", { replace: true });
+}
 
   return (
     // <nav className="navbar">
