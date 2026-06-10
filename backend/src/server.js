@@ -51,7 +51,7 @@ console.log("PORT BEING USED: " + PORT)
 // Start server with safety check
 app.listen(PORT)
   .on("listening", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on ${PORT}`);
   })
   .on("error", (err) => {
     if (err.code === "EADDRINUSE") {
@@ -79,6 +79,14 @@ app.get("/test-firebase", async (req, res) => {
     console.error(err);
     res.status(500).send("Firebase connection failed");
   }
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "WorldCupPicks API running"
+  });
 });
 
 

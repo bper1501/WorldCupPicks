@@ -501,7 +501,8 @@ useEffect(() => {
             </section>
           ))}
 
-          <div>
+          {/* Tiebreaker input - commenting out for group stage - will enable during knockout stage */}
+          {/* <div>
             <label>Tiebreaker Goals</label>
             <input
               type="number"
@@ -511,7 +512,7 @@ useEffect(() => {
               }
               required
             />
-          </div>
+          </div> */}
 
           <button className="sticky-submit" type="submit" disabled={submitting || picksLocked}>
             {submitting ? "Submitting..." : picksLocked ? "Picks Locked" : "Submit Picks"}
