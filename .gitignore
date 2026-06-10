@@ -1,0 +1,9 @@
+# Ignore macOS files
+.DS_Store
+.env
+
+# Ignore service account key
+serviceAccountKey.json
+
+# If your key is inside backend folder
+backend/serviceAccountKey.json
