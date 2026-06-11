@@ -250,6 +250,14 @@ function handleLogout() {
                 >
                    🏅 Leaderboard
                 </Link>
+                <Link
+                  className="button-link"
+                  to={`/results?leagueId=${leagueId}&leagueName=${encodeURIComponent(
+                    league.leagueName || league.name
+                  )}&stage=${currentStage}`}
+                >
+                  ✅ View My Results
+                </Link>
               </div>
             </div>
           );
