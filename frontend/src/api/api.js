@@ -17,6 +17,15 @@ async function handleResponse(response) {
   return data;
 }
 
+// Get user results for a stage
+export async function getUserResults({ leagueId, stage, userId }) {
+  const response = await fetch(
+    `${API_BASE_URL}/results/${leagueId}/${stage}/${userId}`
+  );
+
+  return handleResponse(response);
+}
+
 // Create league
 export async function createLeague({ leagueName, userId }) {
   const response = await fetch(`${API_BASE_URL}/create-league`, {
