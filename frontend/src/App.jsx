@@ -10,6 +10,7 @@ import Register from "./pages/Register";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import Admin from "./pages/Admin";
+import Results from "./pages/Results";
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
             <Leaderboard />
           </ProtectedRoute>
         } />
+        <Route path="/results" element={<Results />} />
         <Route path="/login" element={
           <PublicRoute>
             <Login />
