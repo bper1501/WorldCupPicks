@@ -6,6 +6,12 @@ function Navbar() {
   const location = useLocation();
 
   const userId = localStorage.getItem("worldCupUserId");
+
+  const adminUsers =
+    import.meta.env.VITE_ADMIN_USERS?.split(",").map(user => user.trim()) || [];
+
+  const isAdmin = userId && adminUsers.includes(userId);
+
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -44,10 +50,9 @@ function Navbar() {
             <Link to="/create-league">Create League</Link>
             <Link to="/">Join League</Link>
 
-            <button
-              className="navbar-logout"
-              onClick={handleLogout}
-            >
+            {isAdmin && <Link to="/admin">Admin</Link>}
+
+            <button className="navbar-logout" onClick={handleLogout}>
               Logout
             </button>
           </>
