@@ -51,7 +51,7 @@ console.log("PORT BEING USED: " + PORT)
 // Start server with safety check
 app.listen(PORT)
   .on("listening", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on ${PORT}`);
   })
   .on("error", (err) => {
     if (err.code === "EADDRINUSE") {
@@ -79,6 +79,14 @@ app.get("/test-firebase", async (req, res) => {
     console.error(err);
     res.status(500).send("Firebase connection failed");
   }
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "WorldCupPicks API running"
+  });
 });
 
 
@@ -729,26 +737,44 @@ app.post("/calculate-stage-scores", async (req, res) => {
         }
       });
 
-      const predictedGoals = Number(pickData.tiebreakerGoals);
-      const tiebreakerDifference = Math.abs(actualTotalGoals - predictedGoals);
+    const hasTiebreaker =
+    pickData.tiebreakerGoals !== undefined &&
+    pickData.tiebreakerGoals !== null &&
+    pickData.tiebreakerGoals !== "";
 
-      scores.push({
-        userId,
-        points,
-        tiebreakerGoals: predictedGoals,
-        tiebreakerDifference
-      });
+    const predictedGoals = hasTiebreaker
+    ? Number(pickData.tiebreakerGoals)
+    : null;
+
+    const tiebreakerDifference = hasTiebreaker
+    ? Math.abs(actualTotalGoals - predictedGoals)
+    : null;
+
+    scores.push({
+      userId,
+      points,
+      tiebreakerGoals: predictedGoals,
+      tiebreakerDifference
     });
+  });
 
     // 6. Find closest tiebreaker prediction
-    const closestDifference = Math.min(
-      ...scores.map(score => score.tiebreakerDifference)
+    const validTiebreakerScores = scores.filter(
+      score => score.tiebreakerDifference !== null
     );
+
+    const closestDifference =
+      validTiebreakerScores.length > 0
+        ? Math.min(...validTiebreakerScores.map(score => score.tiebreakerDifference))
+        : null;
 
     // 7. Award +5 to all users tied for closest tiebreaker
     const finalScores = scores.map(score => {
       const tiebreakerPoints =
-        score.tiebreakerDifference === closestDifference ? 5 : 0;
+        closestDifference !== null &&
+        score.tiebreakerDifference === closestDifference
+          ? 5
+          : 0;
 
       return {
         ...score,
@@ -789,6 +815,140 @@ app.post("/calculate-stage-scores", async (req, res) => {
 
     res.status(500).json({
       error: "Failed to calculate stage scores"
+    });
+  }
+});
+
+// POST PARTIAL SCORE
+app.post("/partial-score", async (req, res) => {
+  try {
+    if (!requireAdmin(req, res)) return;
+
+    const { leagueId, stage } = req.body;
+
+    if (!leagueId || !stage) {
+      return res.status(400).json({
+        error: "leagueId and stage are required"
+      });
+    }
+
+    const leagueRef = db.collection("leagues").doc(leagueId);
+    const leagueSnap = await leagueRef.get();
+
+    if (!leagueSnap.exists) {
+      return res.status(404).json({
+        error: "League not found"
+      });
+    }
+
+    const matchesSnapshot = await db
+      .collection("matches")
+      .where("stage", "==", stage)
+      .where("status", "==", "FINISHED")
+      .get();
+
+    if (matchesSnapshot.empty) {
+      return res.json({
+        message: "No finished matches found yet for this stage",
+        leagueId,
+        stage,
+        finishedMatchesCount: 0,
+        scoresUpdated: false
+      });
+    }
+
+    const matchMap = {};
+
+    matchesSnapshot.docs.forEach(doc => {
+      matchMap[doc.id] = {
+        id: doc.id,
+        ...doc.data()
+      };
+    });
+
+    const picksSnapshot = await db
+      .collection("picks")
+      .doc(leagueId)
+      .collection(stage)
+      .get();
+
+    if (picksSnapshot.empty) {
+      return res.json({
+        message: "No picks found for this league and stage",
+        leagueId,
+        stage,
+        finishedMatchesCount: matchesSnapshot.size,
+        scoresUpdated: false
+      });
+    }
+
+    const partialScores = [];
+
+    picksSnapshot.docs.forEach(doc => {
+      const userId = doc.id;
+      const pickData = doc.data();
+      const userPicks = pickData.picks || [];
+
+      let matchPoints = 0;
+
+      userPicks.forEach(userPick => {
+        const match = matchMap[userPick.matchId];
+
+        if (!match) return;
+
+        if (userPick.pick === match.winner) {
+          matchPoints += 1;
+        }
+      });
+
+      partialScores.push({
+        userId,
+        matchPoints,
+        tiebreakerPoints: 0,
+        totalPoints: matchPoints,
+        tiebreakerGoals: pickData.tiebreakerGoals ?? null,
+        tiebreakerDifference: null,
+        finishedMatchesCount: matchesSnapshot.size,
+        isPartial: true,
+        calculatedAt: new Date()
+      });
+    });
+
+    const batch = db.batch();
+
+    partialScores.forEach(score => {
+      const scoreRef = db
+        .collection("scores")
+        .doc(leagueId)
+        .collection(stage)
+        .doc(score.userId);
+
+      batch.set(scoreRef, score, { merge: true });
+    });
+
+    await batch.commit();
+
+    const leaderboard = partialScores
+      .sort((a, b) => b.totalPoints - a.totalPoints)
+      .map((score, index) => ({
+        rank: index + 1,
+        ...score
+      }));
+
+    res.json({
+      message: "Partial scores calculated successfully",
+      leagueId,
+      stage,
+      finishedMatchesCount: matchesSnapshot.size,
+      scoresUpdated: true,
+      leaderboard
+    });
+
+  } catch (error) {
+    console.error("Partial score error:", error);
+
+    res.status(500).json({
+      error: "Failed to calculate partial scores"
     });
   }
 });
