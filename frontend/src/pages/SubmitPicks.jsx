@@ -58,30 +58,73 @@ const stageDisplayName = formatStageName(stage);
 const picksMade = Object.values(picks).filter(Boolean).length;
 const totalMatches = matches.length;
 
-//Change "GROUP_A" to "Group A", "ROUND_OF_16" to "Round of 16", etc. If no group, return "Other Matches"
-function formatGroupName(groupValue) {
-  if (!groupValue) return "Other Matches";
+// //Change "GROUP_A" to "Group A", "ROUND_OF_16" to "Round of 16", etc. If no group, return "Other Matches"
+// function formatGroupName(groupValue) {
+//   if (!groupValue) return "Other Matches";
 
-  return groupValue
-    .replace("GROUP_", "Group ")
-    .replace("_", " ");
+//   return groupValue
+//     .replace("GROUP_", "Group ")
+//     .replace("_", " ");
+// }
+
+// //Group matches by their group (e.g. Group A, Group B, etc.)
+// function groupMatchesByGroup(matchesList) {
+//   return matchesList.reduce((acc, match) => {
+//     const groupName = formatGroupName(match.group);
+
+//     if (!acc[groupName]) {
+//       acc[groupName] = [];
+//     }
+
+//     acc[groupName].push(match);
+//     return acc;
+//   }, {});
+// }
+
+// const groupedMatches = groupMatchesByGroup(matches);
+
+
+function formatMatchDate(kickoffTime) {
+  if (!kickoffTime) return "Date TBD";
+
+  return new Date(kickoffTime).toLocaleDateString([], {
+    weekday: "long",
+    month: "long",
+    day: "numeric"
+  });
 }
 
-//Group matches by their group (e.g. Group A, Group B, etc.)
-function groupMatchesByGroup(matchesList) {
-  return matchesList.reduce((acc, match) => {
-    const groupName = formatGroupName(match.group);
+function formatMatchTime(kickoffTime) {
+  if (!kickoffTime) return "Time TBD";
 
-    if (!acc[groupName]) {
-      acc[groupName] = [];
+  return new Date(kickoffTime).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function groupMatchesByDate(matchesList) {
+  const sortedMatches = [...matchesList].sort(
+    (a, b) => new Date(a.kickoffTime) - new Date(b.kickoffTime)
+  );
+
+  return sortedMatches.reduce((acc, match) => {
+    const dateLabel = formatMatchDate(match.kickoffTime);
+
+    if (!acc[dateLabel]) {
+      acc[dateLabel] = [];
     }
 
-    acc[groupName].push(match);
+    acc[dateLabel].push(match);
     return acc;
   }, {});
 }
 
-const groupedMatches = groupMatchesByGroup(matches);
+const groupedMatches = groupMatchesByDate(matches);
+
+const sortedMatches = [...matches].sort(
+  (a, b) => new Date(a.kickoffTime) - new Date(b.kickoffTime)
+);
 
 //Render matches grouped by their group with a header for each group
   async function handleSubmitPicks(e) {
@@ -119,11 +162,17 @@ function handlePickChange(matchId, value) {
     [String(matchId)]: value
   }));
 
-  const currentIndex = matches.findIndex(
+  // const currentIndex = matches.findIndex(
+  //   (match) => String(match.id) === String(matchId)
+  // );
+
+  // const nextMatch = matches[currentIndex + 1];
+
+  const currentIndex = sortedMatches.findIndex(
     (match) => String(match.id) === String(matchId)
   );
 
-  const nextMatch = matches[currentIndex + 1];
+  const nextMatch = sortedMatches[currentIndex + 1];
 
   if (nextMatch) {
     setTimeout(() => {
@@ -359,88 +408,13 @@ useEffect(() => {
       {matches.length > 0 && (
         <form onSubmit={handleSubmitPicks}>
           <h2>{stageDisplayName} Matches</h2>
-  
-
-          {/* {matches.map((match) => (
-            <div
-              className="match-card"
-              key={match.id}
-              style={{
-                border: "1px solid #ccc",
-                padding: "10px",
-                marginBottom: "10px"
-              }}
-              ref={(el) => {
-              matchRefs.current[String(match.id)] = el;
-              }}
-            >
-
-            <div className="match-header">
-              <span>{match.teamA}</span>
-              <span className="vs-text">VS</span>
-              <span>{match.teamB}</span>
-            </div>
-
-              <label className="pick-option">
-                <input
-                  type="radio"
-                  name={match.id}
-                  value="HOME"
-                  //checked={picks[match.id] === "HOME"}
-                  checked={picks[String(match.id)] === "HOME"}
-                  onChange={() =>
-                    handlePickChange(match.id, "HOME")
-                  }
-                  required
-                />
-                {match.teamA}
-              </label>
-
-              <br />
-
-              <label className="pick-option">
-                <input
-                  type="radio"
-                  name={match.id}
-                  value="DRAW"
-                  //checked={picks[match.id] === "DRAW"}
-                  checked={picks[String(match.id)] === "DRAW"}
-                  onChange={() =>
-                    handlePickChange(match.id, "DRAW")
-                  }
-                />
-                Draw
-              </label>
-
-              <br />
-
-              <label className="pick-option">
-                <input
-                  type="radio"
-                  name={match.id}
-                  value="AWAY"
-                  //checked={picks[match.id] === "AWAY"}
-                  checked={picks[String(match.id)] === "AWAY"}
-                  onChange={() =>
-                    handlePickChange(match.id, "AWAY")
-                  }
-                />
-                {match.teamB}
-              </label>
-            </div>
-          ))} */}
 
           {/* Render matches grouped by their group (e.g. Group A, Group B, etc.) with a header for each group */}
-          {Object.entries(groupedMatches).map(([groupName, groupMatches]) => (
-            <section key={groupName}>
-              <h3 className="group-heading">{groupName}</h3>
+          {Object.entries(groupedMatches).map(([dateLabel, dateMatches]) => (
+            <section key={dateLabel}>
+              <h3 className="group-heading">{dateLabel}</h3>
 
-              {groupMatches
-                .sort(
-                  (a, b) =>
-                    new Date(a.kickoffTime) - new Date(b.kickoffTime)
-                )
-                .map((match) => (
+              {dateMatches.map((match) => (
                   <div
                     className="match-card"
                     key={match.id}
@@ -456,7 +430,7 @@ useEffect(() => {
 
                     {match.kickoffTime && (
                       <p className="match-time">
-                        {new Date(match.kickoffTime).toLocaleString()}
+                        Kickoff: {formatMatchTime(match.kickoffTime)}
                       </p>
                     )}
 
