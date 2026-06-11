@@ -129,8 +129,15 @@ function Leaderboard() {
           <h2>{formatStageName(stage)} Standings</h2>
 
           {leaderboard.map((entry, index) => {
-            const points = entry.points ?? entry.score ?? 0;
+            const points =
+              entry.totalPoints ??
+              entry.matchPoints ??
+              entry.points ??
+              entry.score ??
+              0;
+
             const rank = index + 1;
+            
             const rankClass =
             rank === 1
               ? "rank-gold"
