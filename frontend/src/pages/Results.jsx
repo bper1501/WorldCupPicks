@@ -63,7 +63,7 @@ resultsData?.results?.filter(
       </main>
     );
   }
-
+  
   return (
     <main className="page">
       <h1 className="page-title">My Results</h1>
