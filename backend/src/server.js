@@ -732,7 +732,21 @@ app.post("/calculate-stage-scores", async (req, res) => {
         // If match doesn't exist or hasn't finished, skip it
         if (!match) return;
 
-        if (userPick.pick === match.winner) {
+        // if (userPick.pick === match.winner) {
+        //   points += 1;
+        // }
+
+      let actualWinnerPick = null;
+
+        if (match.winner === "DRAW") {
+          actualWinnerPick = "DRAW";
+        } else if (match.winner === match.teamA) {
+          actualWinnerPick = "HOME";
+        } else if (match.winner === match.teamB) {
+          actualWinnerPick = "AWAY";
+        }
+
+        if (userPick.pick === actualWinnerPick) {
           points += 1;
         }
       });
@@ -896,10 +910,26 @@ app.post("/partial-score", async (req, res) => {
 
         if (!match) return;
 
-        if (userPick.pick === match.winner) {
-          matchPoints += 1;
-        }
+        // if (userPick.pick === match.winner) {
+        //   matchPoints += 1;
+        // }
+
+      let actualWinnerPick = null;
+
+      if (match.winner === "DRAW") {
+        actualWinnerPick = "DRAW";
+      } else if (match.winner === match.teamA) {
+        actualWinnerPick = "HOME";
+      } else if (match.winner === match.teamB) {
+        actualWinnerPick = "AWAY";
+      }
+
+      if (userPick.pick === actualWinnerPick) {
+        matchPoints += 1;
+      }
       });
+
+
 
       partialScores.push({
         userId,
@@ -1265,7 +1295,18 @@ app.get("/results/:leagueId/:stage/:userId", async (req, res) => {
         };
       }
 
-      const correct = userPick.pick === match.winner;
+      //const correct = userPick.pick === match.winner;
+      let actualWinnerPick = null;
+
+      if (match.winner === "DRAW") {
+        actualWinnerPick = "DRAW";
+      } else if (match.winner === match.teamA) {
+        actualWinnerPick = "HOME";
+      } else if (match.winner === match.teamB) {
+        actualWinnerPick = "AWAY";
+      }
+
+      const correct = userPick.pick === actualWinnerPick;
 
       return {
         matchId: userPick.matchId,
@@ -1275,6 +1316,7 @@ app.get("/results/:leagueId/:stage/:userId", async (req, res) => {
         awayGoals: match.awayGoals,
         userPick: userPick.pick,
         actualWinner: match.winner,
+        actualWinnerPick,
         correct,
         pointsEarned: correct ? 1 : 0,
         status: match.status
@@ -2070,7 +2112,21 @@ app.post("/process-stage", async (req, res) => {
 
         if (!match) return;
 
-        if (userPick.pick === match.winner) {
+        // if (userPick.pick === match.winner) {
+        //   points += 1;
+        // }
+
+        let actualWinnerPick = null;
+
+        if (match.winner === "DRAW") {
+          actualWinnerPick = "DRAW";
+        } else if (match.winner === match.teamA) {
+          actualWinnerPick = "HOME";
+        } else if (match.winner === match.teamB) {
+          actualWinnerPick = "AWAY";
+        }
+
+        if (userPick.pick === actualWinnerPick) {
           points += 1;
         }
       });
