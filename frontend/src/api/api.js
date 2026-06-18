@@ -151,3 +151,17 @@ export async function loginUser({ username, password }) {
 
   return handleResponse(response);
 }
+
+// Get league picks for a stage
+export async function getLeaguePicks(leagueId, stage, userId) {
+  const res = await fetch(
+    `${API_BASE_URL}/league-picks/${leagueId}/${stage}?userId=${encodeURIComponent(userId)}`
+  );
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    throw new Error(errorData?.error || "Failed to load league picks");
+  }
+
+  return res.json();
+}

@@ -11,6 +11,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import Admin from "./pages/Admin";
 import Results from "./pages/Results";
+import LeaguePicks from "./pages/LeaguePicks";
 
 function App() {
   return (
@@ -32,6 +33,11 @@ function App() {
         <Route path="/submit-picks" element={
           <ProtectedRoute>
             <SubmitPicks />
+          </ProtectedRoute>
+        } />
+        <Route path="/league-picks/:leagueId" element={
+          <ProtectedRoute>
+            <LeaguePicks />
           </ProtectedRoute>
         } />
         <Route path="/leaderboard" element={
