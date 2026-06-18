@@ -926,9 +926,6 @@ label {
     text-align: center;
     box-sizing: border-box;
   }
-    .pick-count-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
 
   .match-pick-card {
     padding: 1.25rem;
@@ -1161,5 +1158,112 @@ label {
   .action-row .button-link {
     width: 100%;
     max-width: none;
+  }
+}
+
+/* =========================
+   League Picks Mobile Fixes
+   ========================= */
+
+.league-picks-page {
+  width: 100%;
+  max-width: 900px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.match-pick-card,
+.locked-card {
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.pick-count-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pick-count-grid div {
+  min-width: 0;
+  gap: 8px;
+}
+
+.pick-count-grid strong,
+.pick-count-grid span {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/* Phone-specific League Picks layout */
+@media (max-width: 640px) {
+  .league-picks-page {
+    padding: 14px;
+  }
+
+  .league-picks-controls {
+    gap: 12px;
+  }
+
+  .league-picks-controls button {
+    border-radius: 14px;
+  }
+
+  .pick-filter-toggle {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .pick-filter-toggle button {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 999px;
+  }
+
+  .match-picks-list {
+    gap: 18px;
+  }
+
+  .match-pick-card,
+  .locked-card {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .match-pick-header h2 {
+    font-size: 1.35rem;
+  }
+
+  .match-pick-header p {
+    font-size: 1rem;
+  }
+
+  .pick-count-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .pick-count-grid div {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 14px;
+  }
+
+  .pick-count-grid strong {
+    font-size: 1rem;
+  }
+
+  .pick-count-grid span {
+    font-size: 0.95rem;
+    white-space: nowrap;
+  }
+
+  .secondary-button {
+    min-height: 52px;
+    border-radius: 14px;
+  }
+
+  .next-match-badge {
+    font-size: 0.75rem;
   }
 }
