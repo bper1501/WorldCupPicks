@@ -160,12 +160,13 @@ function handleLogout() {
         </div>
       </div>
 
-      <div className="league-actions">
+     
+      <div className="dashboard-top-actions">
         <Link className="button-link" to="/create-league">
           🏆 Create League
         </Link>
 
-        <Link className="button-link secondary-button" to="/">
+        <Link className="button-link" to="/">
           👥 Join League
         </Link>
 
@@ -231,10 +232,9 @@ function handleLogout() {
               <strong>{league.inviteCode}</strong>
             </p>
 
-              <div className="league-actions">
-
+              <div className="league-card-actions">
                 <Link
-                  className="button-link"
+                  className="league-card-button primary"
                   to={`/submit-picks?leagueId=${leagueId}&leagueName=${encodeURIComponent(
                     league.leagueName || league.name
                   )}&stage=${currentStage}`}
@@ -243,7 +243,7 @@ function handleLogout() {
                 </Link>
 
                 <Link
-                  className="button-link accent-button"
+                  className="league-card-button secondary"
                   to={`/leaderboard?leagueId=${leagueId}&leagueName=${encodeURIComponent(
                     league.leagueName || league.name
                   )}&stage=${currentStage}`}
@@ -251,12 +251,16 @@ function handleLogout() {
                    🏅 Leaderboard
                 </Link>
                 <Link
-                  className="button-link"
+                  className="league-card-button primary"
                   to={`/results?leagueId=${leagueId}&leagueName=${encodeURIComponent(
                     league.leagueName || league.name
                   )}&stage=${currentStage}`}
                 >
                   ✅ View My Results
+                </Link>
+
+                <Link className="league-card-button secondary" to={`/league-picks/${league.id}`}>
+                  🌎 View League Picks
                 </Link>
               </div>
             </div>

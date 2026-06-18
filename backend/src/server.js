@@ -2653,3 +2653,334 @@ app.post("/login", async (req, res) => {
     });
   }
 });
+
+
+//League Picks
+// app.get("/league-picks/:leagueId/:stage", async (req, res) => {
+//   try {
+//     const { leagueId, stage } = req.params;
+//     const { userId } = req.query;
+
+//     if (!userId) {
+//       return res.status(401).json({ error: "User ID required" });
+//     }
+
+//     const leagueSnap = await db.collection("leagues").doc(leagueId).get();
+
+//     if (!leagueSnap.exists) {
+//       return res.status(404).json({ error: "League not found" });
+//     }
+
+//     const leagueData = leagueSnap.data();
+
+//     if (!leagueData.members?.includes(userId)) {
+//       return res.status(403).json({
+//         error: "You are not a member of this league",
+//       });
+//     }
+
+//     const stageSnap = await db.collection("stages").doc(stage).get();
+
+//     if (!stageSnap.exists) {
+//       return res.status(404).json({ error: "Stage not found" });
+//     }
+
+//     const stageData = stageSnap.data();
+//     const now = new Date();
+//     const lockTime = stageData.lockTime?.toDate?.();
+
+//     const isLocked = stageData.isLocked || (lockTime && now >= lockTime);
+
+//     if (!isLocked) {
+//       return res.json({
+//         locked: false,
+//         message: "Picks are hidden until this stage locks.",
+//         matches: [],
+//       });
+//     }
+
+//     // Removed orderBy for troubleshooting
+//     const matchesSnap = await db
+//       .collection("matches")
+//       .where("stage", "==", stage)
+//       .get();
+
+//     const picksSnap = await db
+//       .collection("picks")
+//       .doc(leagueId)
+//       .collection(stage)
+//       .get();
+
+//     const userPickMap = {};
+
+//     picksSnap.forEach((doc) => {
+//       const pickedByUserId = doc.id;
+//       const data = doc.data();
+
+//       if (!Array.isArray(data.picks)) return;
+
+//       data.picks.forEach((pick) => {
+//         if (!pick.matchId || !pick.pick) return;
+
+//         if (!userPickMap[pick.matchId]) {
+//           userPickMap[pick.matchId] = [];
+//         }
+
+//         userPickMap[pick.matchId].push({
+//           userId: pickedByUserId,
+//           pick: pick.pick,
+//         });
+//       });
+//     });
+
+//     const matches = [];
+
+//     matchesSnap.forEach((doc) => {
+//       const matchId = doc.id;
+//       const match = doc.data();
+
+//       const matchPicks = userPickMap[matchId] || [];
+
+//       const pickGroups = {
+//         home: [],
+//         draw: [],
+//         away: [],
+//       };
+
+//       matchPicks.forEach((entry) => {
+//         if (entry.pick === "HOME") {
+//           pickGroups.home.push(entry.userId);
+//         } else if (entry.pick === "DRAW") {
+//           pickGroups.draw.push(entry.userId);
+//         } else if (entry.pick === "AWAY") {
+//           pickGroups.away.push(entry.userId);
+//         }
+//       });
+
+//       matches.push({
+//         matchId,
+//         homeTeam: match.teamA,
+//         awayTeam: match.teamB,
+//         utcDate: match.kickoffTime,
+//         status: match.status,
+//         pickCounts: {
+//           home: pickGroups.home.length,
+//           draw: pickGroups.draw.length,
+//           away: pickGroups.away.length,
+//         },
+//         picks: pickGroups,
+//         totalPicks: matchPicks.length,
+//       });
+//     });
+
+//     // Sort in JS instead of Firestore
+//     matches.sort((a, b) => {
+//       const dateA = a.utcDate ? new Date(a.utcDate) : 0;
+//       const dateB = b.utcDate ? new Date(b.utcDate) : 0;
+//       return dateA - dateB;
+//     });
+
+//     return res.json({
+//       locked: true,
+//       stage,
+//       matches,
+//     });
+//   } catch (error) {
+//     console.error("========== LEAGUE PICKS ERROR ==========");
+//     console.error(error);
+//     console.error("========================================");
+
+//     return res.status(500).json({
+//       error: error.message || "Failed to load league picks",
+//     });
+//   }
+// });
+
+
+app.get("/league-picks/:leagueId/:stage", async (req, res) => {
+  try {
+    const { leagueId, stage } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(401).json({ error: "User ID required" });
+    }
+
+    const leagueSnap = await db.collection("leagues").doc(leagueId).get();
+
+    if (!leagueSnap.exists) {
+      return res.status(404).json({ error: "League not found" });
+    }
+
+    const leagueData = leagueSnap.data();
+
+    if (!leagueData.members?.includes(userId)) {
+      return res.status(403).json({
+        error: "You are not a member of this league",
+      });
+    }
+
+    const stageSnap = await db.collection("stages").doc(stage).get();
+
+    if (!stageSnap.exists) {
+      return res.status(404).json({ error: "Stage not found" });
+    }
+
+    const stageData = stageSnap.data();
+    const now = new Date();
+    const lockTime = stageData.lockTime?.toDate?.();
+
+    const isLocked = stageData.isLocked || (lockTime && now >= lockTime);
+
+    if (!isLocked) {
+      return res.json({
+        locked: false,
+        message: "Picks are hidden until this stage locks.",
+        matches: [],
+      });
+    }
+
+    const matchesSnap = await db
+      .collection("matches")
+      .where("stage", "==", stage)
+      .get();
+
+    const picksSnap = await db
+      .collection("picks")
+      .doc(leagueId)
+      .collection(stage)
+      .get();
+
+    const userPickMap = {};
+
+    picksSnap.forEach((doc) => {
+      const pickedByUserId = doc.id;
+      const data = doc.data();
+
+      if (!Array.isArray(data.picks)) return;
+
+      data.picks.forEach((pick) => {
+        if (!pick.matchId || !pick.pick) return;
+
+        if (!userPickMap[pick.matchId]) {
+          userPickMap[pick.matchId] = [];
+        }
+
+        userPickMap[pick.matchId].push({
+          userId: pickedByUserId,
+          pick: pick.pick,
+        });
+      });
+    });
+
+    const matches = [];
+
+    matchesSnap.forEach((doc) => {
+      const matchId = doc.id;
+      const match = doc.data();
+
+      const matchPicks = userPickMap[matchId] || [];
+
+      const pickGroups = {
+        home: [],
+        draw: [],
+        away: [],
+      };
+
+      matchPicks.forEach((entry) => {
+        const normalizedPick = String(entry.pick || "").toUpperCase();
+
+        if (normalizedPick === "HOME") {
+          pickGroups.home.push(entry.userId);
+        } else if (normalizedPick === "DRAW") {
+          pickGroups.draw.push(entry.userId);
+        } else if (normalizedPick === "AWAY") {
+          pickGroups.away.push(entry.userId);
+        }
+      });
+
+      matches.push({
+        matchId,
+        homeTeam: match.teamA,
+        awayTeam: match.teamB,
+        utcDate: match.kickoffTime,
+        status: match.status,
+        pickCounts: {
+          home: pickGroups.home.length,
+          draw: pickGroups.draw.length,
+          away: pickGroups.away.length,
+        },
+        picks: pickGroups,
+        totalPicks: matchPicks.length,
+        isNextMatch: false,
+      });
+    });
+
+    const getMatchDate = (match) => {
+      if (!match.utcDate) return null;
+
+      if (typeof match.utcDate?.toDate === "function") {
+        return match.utcDate.toDate();
+      }
+
+      return new Date(match.utcDate);
+    };
+
+    matches.sort((a, b) => {
+      const dateA = getMatchDate(a);
+      const dateB = getMatchDate(b);
+
+      const aFinished = a.status === "FINISHED";
+      const bFinished = b.status === "FINISHED";
+
+      if (aFinished !== bFinished) {
+        return aFinished ? 1 : -1;
+      }
+
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+
+      return dateA - dateB;
+    });
+
+    let nextMatchMarked = false;
+
+    const matchesWithNextFlag = matches.map((match) => {
+      const kickoffDate = getMatchDate(match);
+
+      const isUpcoming =
+        kickoffDate &&
+        kickoffDate >= now &&
+        match.status !== "FINISHED";
+
+      if (isUpcoming && !nextMatchMarked) {
+        nextMatchMarked = true;
+
+        return {
+          ...match,
+          isNextMatch: true,
+        };
+      }
+
+      return {
+        ...match,
+        isNextMatch: false,
+      };
+    });
+
+    return res.json({
+      locked: true,
+      stage,
+      matches: matchesWithNextFlag,
+    });
+  } catch (error) {
+    console.error("========== LEAGUE PICKS ERROR ==========");
+    console.error(error);
+    console.error("========================================");
+
+    return res.status(500).json({
+      error: error.message || "Failed to load league picks",
+    });
+  }
+});
